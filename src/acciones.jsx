@@ -219,6 +219,7 @@ export function NuevoEvento({ potreroId: inicial, evento, onCerrar }) {
 // Movimiento de hacienda: modifica la composición del lote con incrementos (así dos personas
 // cargando a la vez sin señal no se pisan los números).
 export function NuevoMovHacienda({ loteId: inicial, onCerrar }) {
+  const { puede } = useApp();
   const lotes = useCol("lotes");
   const [d, setD] = useState({ loteId: inicial || "", fecha: hoy(), tipo: "nacimiento", categoria: "ternero", categoriaNueva: "novillito", cantidad: "", destinoLoteId: "", kg: "", precio: "", notas: "" });
   const set = (k) => (e) => setD({ ...d, [k]: e.target.value });
@@ -263,7 +264,7 @@ export function NuevoMovHacienda({ loteId: inicial, onCerrar }) {
             </Select>
           </Campo>
         )}
-        {["venta", "compra"].includes(d.tipo) && (
+        {["venta", "compra"].includes(d.tipo) && puede("dinero") && (
           <>
             <Campo label="Kg totales"><Input type="number" value={d.kg} onChange={set("kg")} /></Campo>
             <Campo label="Precio (USD/kg)"><Input type="number" step="0.01" value={d.precio} onChange={set("precio")} /></Campo>

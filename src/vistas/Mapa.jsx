@@ -7,8 +7,8 @@ import {
 } from "lucide-react";
 import { useCol, agregar, actualizar, borrar, escribir, nuevoId } from "../backend";
 import { useApp, Boton, Modal, Campo, Input, Select, Area, BadgeEstado, confirmar } from "../ui";
-import { estadoPotrero, ESTADOS, USOS, haPotrero, fmtNum, TIPOS_PUNTO, tipoPunto, cabezasLote } from "../logica";
-import { lados, centroide, limites, superficieHa, perimetro, fmtMetros, dentro, geojsonAPoligono, poligonoAGeojson, distancia } from "../geo";
+import { estadoPotrero, ESTADOS, USOS, POTENCIAL, contornoUso, haPotrero, fmtNum, TIPOS_PUNTO, tipoPunto, cabezasLote } from "../logica";
+import { lados, centroide, limites, superficieHa, perimetro, fmtMetros, dentro, geojsonAPoligono, poligonoAGeojson, distancia, enderezar } from "../geo";
 import { MoverLote, nombrePotrero } from "../acciones";
 import FormPotrero from "../FormPotrero";
 
@@ -82,8 +82,11 @@ export default function Mapa() {
     for (const p of potreros) {
       if (!p.geometria || p.geometria.length < 3 || p.id === editId) continue;
       const e = estados[p.id];
-      const color = colorPor === "estado" ? ESTADOS[e.estado].color : USOS.find((u) => u.id === p.uso)?.color || "#888";
-      const pol = L.polygon(aLatLngs(p.geometria), { color: sel === p.id ? "#FACC15" : "#fff", weight: sel === p.id ? 4 : 2, fillColor: color, fillOpacity: 0.45 });
+      // Borde = aptitud (campo natural, pradera, verdeo, mejorado); relleno = lo elegido en Capas.
+      const color = colorPor === "estado" ? ESTADOS[e.estado].color
+        : colorPor === "potencial" ? POTENCIAL[p.potencial]?.color || "#A8A29E"
+        : USOS.find((u) => u.id === p.uso)?.color || "#888";
+      const pol = L.polygon(aLatLngs(p.geometria), { color: contornoUso(p.uso), weight: sel === p.id ? 6 : 3, dashArray: sel === p.id ? "10 6" : null, fillColor: color, fillOpacity: 0.4 });
       pol.on("click", (ev) => { if (modo) return; L.DomEvent.stopPropagation(ev); setSel(p.id); });
       const ha = haPotrero(p);
       // Con el campo entero en pantalla alcanza con el número; acercando aparecen nombre y hectáreas.
@@ -169,35 +172,78 @@ export default function Mapa() {
     capasRef.current.borrador.eachLayer((l) => l.pm?.disable());
     capasRef.current.borrador.clearLayers();
     map.off("pm:create");
-    setModo(null); setEditId(null); setBorrador([]);
+    setModo(null); setEditId(null); setBorrador([]); setVertSel(null);
   };
+  // Edición de un contorno (nuevo o existente): arrastrar vértices, agregar uno tocando el punto
+  // medio de un lado, tocar un vértice para seleccionarlo y borrarlo, enderezar y deshacer.
+  const historialRef = useRef([]);
+  const [vertSel, setVertSel] = useState(null);
+  const montarEdicion = (pts) => {
+    const c = capasRef.current;
+    c.borrador.eachLayer((l) => l.pm?.disable());
+    c.borrador.clearLayers();
+    setBorrador(pts); setVertSel(null);
+    const pol = L.polygon(aLatLngs(pts), { color: "#FACC15", weight: 3, fillOpacity: 0.15 }).addTo(c.borrador);
+    pol.pm.enable({ allowSelfIntersection: false, snappable: true, removeVertexOn: "contextmenu" });
+    const act = () => setBorrador(dePuntosLeaflet(pol.getLatLngs()[0]));
+    pol.on("pm:markerdragstart", () => historialRef.current.push(dePuntosLeaflet(pol.getLatLngs()[0])));
+    pol.on("pm:edit pm:markerdragend pm:vertexadded pm:vertexremoved", () => { act(); setVertSel(null); });
+    pol.on("pm:vertexclick", (e) => {
+      const ip = e.indexPath;
+      setVertSel(Array.isArray(ip) ? ip[ip.length - 1] : ip);
+    });
+    return pol;
+  };
+  // Marca el punto seleccionado
+  const marcaRef = useRef(null);
+  useEffect(() => {
+    if (marcaRef.current) { marcaRef.current.remove(); marcaRef.current = null; }
+    if (vertSel == null || !borrador[vertSel] || !mapRef.current) return;
+    marcaRef.current = L.circleMarker([borrador[vertSel].lat, borrador[vertSel].lng], { radius: 14, color: "#DC2626", weight: 3, fill: false, interactive: false, pmIgnore: true }).addTo(mapRef.current);
+  }, [vertSel, borrador]);
+  const cambiarPuntos = (pts) => { historialRef.current.push(borrador); montarEdicion(pts); };
+  const borrarVertice = () => {
+    if (vertSel == null || borrador.length <= 3) return;
+    cambiarPuntos(borrador.filter((_, i) => i !== vertSel));
+  };
+  const enderezarContorno = () => {
+    const nuevos = enderezar(borrador, 4);
+    if (nuevos.length === borrador.length) return alert("No hay puntos casi en línea para quitar.");
+    cambiarPuntos(nuevos);
+  };
+  const deshacer = () => { const prev = historialRef.current.pop(); if (prev) montarEdicion(prev); };
+
   const empezarDibujo = () => {
     const map = mapRef.current;
     setSel(null); setModo("dibujar"); setBorrador([]);
     map.pm.enableDraw("Polygon", { snappable: true, templineStyle: { color: "#FACC15" }, hintlineStyle: { color: "#FACC15", dashArray: [5, 5] }, pathOptions: { color: "#FACC15" } });
     map.once("pm:drawstart", ({ workingLayer }) => {
-      workingLayer.on("pm:vertexadded", () => setBorrador(dePuntosLeaflet(workingLayer.getLatLngs())));
+      workingLayer.on("pm:vertexadded pm:vertexremoved", () => setBorrador(dePuntosLeaflet(workingLayer.getLatLngs())));
     });
     map.once("pm:create", ({ layer }) => {
       const pts = dePuntosLeaflet(layer.getLatLngs()[0]);
       layer.remove();
-      setModo(null); setBorrador([]);
-      setForm({ geometria: pts });
+      // Antes de guardar, pasa a edición para acomodar o borrar puntos.
+      historialRef.current = [];
+      setModo("editar"); setEditId("nuevo");
+      montarEdicion(pts);
     });
+  };
+  const quitarUltimoPunto = () => {
+    const d = mapRef.current?.pm?.Draw?.Polygon;
+    if (d?._removeLastVertex) { d._removeLastVertex(); setBorrador(dePuntosLeaflet(d._layer?.getLatLngs?.() || [])); }
   };
   const empezarEdicion = (p) => {
     const map = mapRef.current;
-    setModo("editar"); setEditId(p.id); setSel(p.id); setBorrador(p.geometria);
-    const c = capasRef.current;
-    c.borrador.clearLayers();
-    const pol = L.polygon(aLatLngs(p.geometria), { color: "#FACC15", weight: 3, fillOpacity: 0.15 }).addTo(c.borrador);
-    pol.pm.enable({ allowSelfIntersection: false, snappable: true });
-    const act = () => setBorrador(dePuntosLeaflet(pol.getLatLngs()[0]));
-    pol.on("pm:edit pm:markerdragend pm:vertexadded pm:vertexremoved", act);
+    historialRef.current = [];
+    setModo("editar"); setEditId(p.id); setSel(p.id);
+    const pol = montarEdicion(p.geometria);
     map.fitBounds(pol.getBounds(), { padding: [40, 40] });
   };
   const guardarEdicion = () => {
-    if (borrador.length >= 3) actualizar("potreros", editId, { geometria: borrador });
+    if (borrador.length < 3) return;
+    if (editId === "nuevo") { const pts = borrador; cancelarModo(); setForm({ geometria: pts }); return; }
+    actualizar("potreros", editId, { geometria: borrador });
     cancelarModo();
   };
   const empezarGps = () => { setSel(null); setModo("gps"); setBorrador([]); seguirme(true); };
@@ -263,6 +309,7 @@ export default function Mapa() {
             <div className="font-semibold mb-1">Colorear potreros por</div>
             <label className="flex gap-2 items-center"><input type="radio" checked={colorPor === "estado"} onChange={() => setColorPor("estado")} /> Estado de descanso</label>
             <label className="flex gap-2 items-center"><input type="radio" checked={colorPor === "uso"} onChange={() => setColorPor("uso")} /> Tipo de pastura</label>
+            <label className="flex gap-2 items-center"><input type="radio" checked={colorPor === "potencial"} onChange={() => setColorPor("potencial")} /> Potencial (1 a 5)</label>
           </div>
           <Leyenda colorPor={colorPor} />
           <Boton chico variante="secundario" className="w-full" onClick={() => setPanel(null)}>Cerrar</Boton>
@@ -273,12 +320,19 @@ export default function Mapa() {
       {modo === "dibujar" && (
         <BarraModo texto={borrador.length ? `${borrador.length} puntos · ${fmtMetros(perimetroAbierto(borrador))}` : "Tocá cada esquina del potrero. Tocá el primer punto para cerrarlo. Se pega a los potreros vecinos."}>
           <Boton variante="secundario" chico onClick={cancelarModo}><X size={16} /> Cancelar</Boton>
+          <Boton variante="secundario" chico onClick={quitarUltimoPunto} disabled={!borrador.length}><Undo2 size={16} /> Quitar último</Boton>
         </BarraModo>
       )}
       {modo === "editar" && (
-        <BarraModo texto={`Arrastrá los vértices. Tocá un punto medio para agregar uno; mantené apretado un vértice para quitarlo. ${fmtNum(superficieHa(borrador), 2)} ha · ${fmtMetros(perimetro(borrador))}`}>
-          <Boton variante="secundario" chico onClick={cancelarModo}><X size={16} /> Cancelar</Boton>
-          <Boton chico onClick={guardarEdicion}><Check size={16} /> Guardar contorno</Boton>
+        <BarraModo texto={vertSel != null
+          ? `Punto V${vertSel + 1} seleccionado.`
+          : `Arrastrá los puntos para moverlos. Tocá un punto para seleccionarlo y borrarlo. Tocá el punto chico del medio de un lado para agregar uno. ${fmtNum(superficieHa(borrador), 2)} ha · ${fmtMetros(perimetro(borrador))} · ${borrador.length} puntos`}>
+          <Boton variante="secundario" chico onClick={cancelarModo}><X size={16} /></Boton>
+          <Boton variante="secundario" chico onClick={deshacer} disabled={!historialRef.current.length}><Undo2 size={16} /> Deshacer</Boton>
+          {vertSel != null
+            ? <Boton variante="peligro" chico onClick={borrarVertice} disabled={borrador.length <= 3}><X size={16} /> Borrar punto</Boton>
+            : <Boton variante="secundario" chico onClick={enderezarContorno} title="Quita los puntos que están casi en línea recta (menos de 4 m de desvío)"><Ruler size={16} /> Enderezar</Boton>}
+          <Boton chico onClick={guardarEdicion}><Check size={16} /> {editId === "nuevo" ? "Listo" : "Guardar contorno"}</Boton>
         </BarraModo>
       )}
       {modo === "gps" && (
@@ -346,10 +400,20 @@ function BarraModo({ texto, children }) {
   );
 }
 function Leyenda({ colorPor }) {
-  const items = colorPor === "estado" ? Object.values(ESTADOS).map((e) => [e.nombre, e.color]) : USOS.map((u) => [u.nombre, u.color]);
+  const items = colorPor === "estado" ? Object.values(ESTADOS).map((e) => [e.nombre, e.color])
+    : colorPor === "potencial" ? [...Object.entries(POTENCIAL).map(([n, x]) => [`${n} · ${x.nombre}`, x.color]), ["Sin calificar", "#A8A29E"]]
+    : USOS.map((u) => [u.nombre, u.color]);
+  const bordes = [["Campo natural", "#22C55E"], ["Pradera", "#FACC15"], ["Verdeo (invierno o verano)", "#2563EB"], ["Campo natural mejorado", "#A855F7"]];
   return (
-    <div className="space-y-1">
-      {items.map(([n, c]) => <div key={n} className="flex items-center gap-2 text-xs"><span className="w-3 h-3 rounded" style={{ background: c }} />{n}</div>)}
+    <div className="space-y-2">
+      <div className="space-y-1">
+        <div className="text-xs font-semibold text-stone-500">Relleno</div>
+        {items.map(([n, c]) => <div key={n} className="flex items-center gap-2 text-xs"><span className="w-3 h-3 rounded" style={{ background: c }} />{n}</div>)}
+      </div>
+      <div className="space-y-1">
+        <div className="text-xs font-semibold text-stone-500">Borde (aptitud)</div>
+        {bordes.map(([n, c]) => <div key={n} className="flex items-center gap-2 text-xs"><span className="w-3 h-3 rounded border-[3px] bg-stone-100" style={{ borderColor: c }} />{n}</div>)}
+      </div>
     </div>
   );
 }

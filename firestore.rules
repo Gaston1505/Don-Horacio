@@ -6,8 +6,9 @@ rules_version = '2';
 // Roles en usuarios/{uid}.rol:
 //   admin     → todo, incluido dar de alta usuarios
 //   encargado → todo menos usuarios
-//   capataz   → registra (mover lotes, lluvias, novedades, movimientos de hacienda, puntos);
-//               no edita potreros ni borra nada
+//   capataz   → registra (mover lotes, lluvias, novedades, comentarios, movimientos de hacienda,
+//               puntos, aplicaciones en chacras, toros); no edita potreros, no borra y no ve plata
+// Plata (ventas, precios de insumos y costos de chacras): solo admin y encargado.
 // Una cuenta sin documento en usuarios no tiene acceso a nada.
 //
 // Ingreso con código (Eduardo, Martín): sesión anónima de Firebase + nombre + código del campo.
@@ -25,6 +26,7 @@ service cloud.firestore {
     function rol() { return perfil().data.rol; }
     function esAdmin() { return tienePerfil() && rol() == "admin"; }
     function puedeEditar() { return tienePerfil() && rol() in ["admin", "encargado"]; }
+    function veDinero() { return puedeEditar(); }
     function puedeRegistrar() { return tienePerfil() && rol() in ["admin", "encargado", "capataz"]; }
     function instalado() { return exists(/databases/$(database)/documents/config/instalacion); }
 
@@ -83,5 +85,22 @@ service cloud.firestore {
     match /eventos/{id} { allow read, create: if puedeRegistrar(); allow update, delete: if puedeEditar(); }
     match /movHacienda/{id} { allow read, create: if puedeRegistrar(); allow update, delete: if puedeEditar(); }
     match /puntos/{id} { allow read, create: if puedeRegistrar(); allow update, delete: if puedeEditar(); }
+    match /comentarios/{id} { allow read, create: if puedeRegistrar(); allow update, delete: if puedeEditar(); }
+    match /toros/{id} { allow read, create: if puedeRegistrar(); allow update, delete: if puedeEditar(); }
+    match /servicios/{id} { allow read, create, update: if puedeRegistrar(); allow delete: if puedeEditar(); }
+
+    // Chacras: el capataz puede anotar aplicaciones/siembras en un ciclo (update), pero crearlos,
+    // cambiar la tabla de recomendaciones y borrar es del administrador/encargado.
+    match /ciclos/{id} { allow read, update: if puedeRegistrar(); allow create, delete: if puedeEditar(); }
+    match /insumos/{id} { allow read: if puedeRegistrar(); allow write: if puedeEditar(); }
+    match /informes/{id} { allow read: if puedeRegistrar(); allow write: if puedeEditar(); }
+    match /archivos/{id} { allow read: if puedeRegistrar(); allow write: if puedeEditar(); }
+    match /archivosPartes/{id} { allow read: if puedeRegistrar(); allow write: if puedeEditar(); }
+
+    // Plata
+    match /costosCiclo/{id} { allow read, write: if veDinero(); }
+    match /preciosInsumos/{id} { allow read, write: if veDinero(); }
+    match /ventas/{id} { allow read, write: if veDinero(); }
+    match /configDinero/{id} { allow read, write: if veDinero(); }
   }
 }

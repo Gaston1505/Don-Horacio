@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Home, RefreshCw, Map as MapIcon, LayoutGrid, Beef, CloudRain, Settings, MoreHorizontal,
-  Wifi, WifiOff, CloudUpload, LogOut, Loader2,
+  Wifi, WifiOff, CloudUpload, LogOut, Loader2, Sprout, DollarSign, Leaf,
 } from "lucide-react";
 import { MODO_PRUEBA, useAuth, useDocSub, useSync, ingresar, entrarConCodigo, salir, recuperarClave, escribir } from "./backend";
 import { Ctx, Boton, Campo, Input, Tarjeta } from "./ui";
@@ -13,14 +13,20 @@ import Potreros from "./vistas/Potreros";
 import Hacienda from "./vistas/Hacienda";
 import Lluvias from "./vistas/Lluvias";
 import Ajustes from "./vistas/Ajustes";
+import Chacras from "./vistas/Chacras";
+import Ventas from "./vistas/Ventas";
+import Informes from "./vistas/Informes";
 
 const SECCIONES = [
   { id: "inicio", nombre: "Inicio", icono: Home, comp: Inicio },
   { id: "rotacion", nombre: "Rotación", icono: RefreshCw, comp: Rotacion },
   { id: "mapa", nombre: "Mapa", icono: MapIcon, comp: Mapa },
   { id: "potreros", nombre: "Potreros", icono: LayoutGrid, comp: Potreros },
+  { id: "chacras", nombre: "Chacras", icono: Sprout, comp: Chacras },
   { id: "hacienda", nombre: "Hacienda", icono: Beef, comp: Hacienda },
+  { id: "ventas", nombre: "Ventas", icono: DollarSign, comp: Ventas, permiso: "dinero" },
   { id: "lluvias", nombre: "Lluvias", icono: CloudRain, comp: Lluvias },
+  { id: "monitoreo", nombre: "Monitoreo", icono: Leaf, comp: Informes },
   { id: "ajustes", nombre: "Ajustes", icono: Settings, comp: Ajustes },
 ];
 const EN_BARRA = ["inicio", "rotacion", "mapa", "potreros"];
@@ -179,7 +185,8 @@ function Shell({ user, perfil, config }) {
   const [mas, setMas] = useState(false);
   const rol = perfil.rol;
   const ctx = useMemo(() => ({ user, perfil, rol, config, puede: (a) => puede(rol, a), ir, param: ruta.param }), [user, perfil, rol, config, ruta.param]);
-  const Sec = SECCIONES.find((s) => s.id === ruta.seccion).comp;
+  const visibles = SECCIONES.filter((s) => !s.permiso || puede(rol, s.permiso));
+  const Sec = (visibles.find((s) => s.id === ruta.seccion) || visibles[0]).comp;
   const pantallaCompleta = ruta.seccion === "mapa";
   return (
     <Ctx.Provider value={ctx}>
@@ -193,8 +200,8 @@ function Shell({ user, perfil, config }) {
               <div className="text-xs text-campo-100/70">{perfil.nombre} · {ROLES[rol]?.nombre}</div>
             </div>
           </div>
-          <nav className="flex-1 px-3 space-y-1">
-            {SECCIONES.map((s) => (
+          <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+            {visibles.map((s) => (
               <button key={s.id} onClick={() => ir(s.id)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left ${ruta.seccion === s.id ? "bg-campo-700 text-white" : "hover:bg-white/10"}`}>
                 <s.icono size={20} /> {s.nombre}
               </button>
@@ -232,7 +239,7 @@ function Shell({ user, perfil, config }) {
         {mas && (
           <div className="lg:hidden fixed inset-0 z-[999]" onClick={() => setMas(false)}>
             <div className="absolute bottom-20 right-3 bg-white rounded-2xl shadow-xl border border-stone-200 p-2 w-56" onClick={(e) => e.stopPropagation()}>
-              {SECCIONES.filter((s) => !EN_BARRA.includes(s.id)).map((s) => (
+              {visibles.filter((s) => !EN_BARRA.includes(s.id)).map((s) => (
                 <button key={s.id} onClick={() => { setMas(false); ir(s.id); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-100"><s.icono size={20} /> {s.nombre}</button>
               ))}
               <div className="px-3 py-2 text-xs text-stone-500 border-t mt-1">{perfil.nombre} · {ROLES[rol]?.nombre}</div>

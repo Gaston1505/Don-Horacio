@@ -30,3 +30,6 @@ body { background: #F4F1EA; color: #1c1917; -webkit-tap-highlight-color: transpa
   .dh-mapa { height: 100dvh; }
   .dh-arriba { margin-top: env(safe-area-inset-top); }
 }
+
+/* Puntos de edición de potreros más grandes para tocarlos con el dedo en el iPad/celular */
+.marker-icon:not(.marker-icon-middle) { width: 22px !important; height: 22px !important; margin-left: -11px !important; margin-top: -11px !important; }

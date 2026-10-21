@@ -56,6 +56,7 @@ export default function Lluvias() {
             </div>
             <GraficoMensual actual={actual} previo={previo} anio={anio} ant={ant} />
           </Tarjeta>
+          <CuadroAnual lluvias={lluvias} />
           <Tarjeta className="divide-y divide-stone-100">
             {ordenadas.slice(0, 200).map((l) => (
               <button key={l.id} onClick={() => setModal({ lluvia: l })} className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-stone-50">
@@ -118,5 +119,61 @@ function GraficoMensual({ actual, previo, anio, ant }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Cuadro de todos los años × meses: de un vistazo cómo se repartió la lluvia en cada año.
+// Más oscuro = más milímetros (una sola escala para todo el cuadro).
+const ESCALA = ["#EFF6FF", "#DBEAFE", "#BFDBFE", "#93C5FD", "#60A5FA", "#3B82F6", "#2563EB", "#1D4ED8", "#1E3A8A"];
+function CuadroAnual({ lluvias }) {
+  const anios = [...new Set(lluvias.map((l) => l.fecha.slice(0, 4)))].sort().reverse();
+  const tabla = anios.map((a) => {
+    const meses = Array.from({ length: 12 }, (_, m) => lluvias.filter((l) => l.fecha.startsWith(`${a}-${String(m + 1).padStart(2, "0")}`)).reduce((s, l) => s + (Number(l.mm) || 0), 0));
+    return { a, meses, total: meses.reduce((x, y) => x + y, 0) };
+  });
+  const max = Math.max(1, ...tabla.flatMap((t) => t.meses));
+  const promMes = Array.from({ length: 12 }, (_, m) => {
+    const completos = tabla.filter((t) => t.a < hoy().slice(0, 4) || m < Number(hoy().slice(5, 7)) - 1);
+    return completos.length ? completos.reduce((s, t) => s + t.meses[m], 0) / completos.length : null;
+  });
+  const color = (v) => (v <= 0 ? "transparent" : ESCALA[Math.min(ESCALA.length - 1, Math.floor((v / max) * (ESCALA.length - 1)) + 1)]);
+  const oscuro = (v) => v / max > 0.55;
+  return (
+    <Tarjeta className="p-4 mb-4">
+      <h2 className="font-semibold mb-1">Cuadro anual</h2>
+      <p className="text-xs text-stone-500 mb-3">Milímetros por mes de cada año. Más oscuro = más lluvia.</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs tabular-nums border-separate" style={{ borderSpacing: 2, minWidth: 560 }}>
+          <thead>
+            <tr className="text-stone-500">
+              <th className="text-left font-medium px-1">Año</th>
+              {MESES_LARGOS.map((m) => <th key={m} className="font-medium">{m.slice(0, 3)}</th>)}
+              <th className="font-semibold text-right px-1">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tabla.map((t) => (
+              <tr key={t.a}>
+                <td className="font-semibold px-1">{t.a}</td>
+                {t.meses.map((v, m) => (
+                  <td key={m} className="text-center rounded py-1.5" title={`${MESES_LARGOS[m]} ${t.a}: ${fmtNum(v, 1)} mm`}
+                    style={{ background: color(v), color: oscuro(v) ? "#fff" : "#1c1917", border: v <= 0 ? "1px solid #f5f5f4" : "none" }}>
+                    {v > 0 ? fmtNum(v) : "·"}
+                  </td>
+                ))}
+                <td className="text-right font-bold px-1">{fmtNum(t.total)}</td>
+              </tr>
+            ))}
+            {tabla.length > 1 && (
+              <tr className="text-stone-500">
+                <td className="px-1">Prom.</td>
+                {promMes.map((v, m) => <td key={m} className="text-center">{v != null ? fmtNum(v) : "—"}</td>)}
+                <td />
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Tarjeta>
   );
 }

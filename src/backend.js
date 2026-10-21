@@ -9,7 +9,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { initializeApp, deleteApp } from "firebase/app";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, onSnapshot, writeBatch, increment, deleteField, setDoc,
+  collection, doc, onSnapshot, writeBatch, increment, deleteField, setDoc, getDoc,
 } from "firebase/firestore";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, signOut,
@@ -95,6 +95,14 @@ export function useDocData(col, id) {
   return lista.find((d) => d.id === id) || null;
 }
 
+// Lectura puntual de un documento (sin suscripción): para archivos grandes que no conviene
+// mantener sincronizados en todos los dispositivos.
+export async function leerDoc(col, id) {
+  if (MODO_PRUEBA) { const d = localMapa(col)[id]; return d ? { id, ...d } : null; }
+  const snap = await getDoc(doc(db, col, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
 // ---------- Escrituras ----------
 export const inc = (n) => (MODO_PRUEBA ? { __inc: n } : increment(n));
 export const borrarCampo = () => (MODO_PRUEBA ? { __del: true } : deleteField());
@@ -104,7 +112,7 @@ export function nuevoId(col) {
   return doc(collection(db, col)).id;
 }
 
-// ops: [{ op: "set" | "update" | "delete", col, id, data }]
+// ops: [{ op: "set" | "update" | "delete", col, id, data, merge? }]
 export function escribir(ops) {
   const meta = { actualizadoPor: usuarioActualUid, actualizadoEn: new Date().toISOString() };
   if (MODO_PRUEBA) {
@@ -112,6 +120,7 @@ export function escribir(ops) {
     for (const o of ops) {
       const m = localMapa(o.col);
       if (o.op === "delete") delete m[o.id];
+      else if (o.op === "set" && o.merge) m[o.id] = mezclar(m[o.id] || {}, { ...o.data, ...meta });
       else if (o.op === "set") m[o.id] = aplicarCampos({}, { ...o.data, ...meta });
       else m[o.id] = aplicarCampos(m[o.id] || {}, { ...o.data, ...meta });
       localGuardar(o.col, m);
@@ -124,7 +133,7 @@ export function escribir(ops) {
   for (const o of ops) {
     const ref = doc(db, o.col, o.id);
     if (o.op === "delete") b.delete(ref);
-    else if (o.op === "set") b.set(ref, { ...o.data, ...meta });
+    else if (o.op === "set") b.set(ref, { ...o.data, ...meta }, o.merge ? { merge: true } : {});
     else b.update(ref, { ...o.data, ...meta });
   }
   const p = b.commit();
@@ -147,6 +156,14 @@ function localMapa(col) {
 }
 function localGuardar(col, m) { localStorage.setItem(LKEY(col), JSON.stringify(m)); }
 function localLeer(col) { return Object.entries(localMapa(col)).map(([id, d]) => ({ id, ...d })); }
+// set con merge: mezcla objetos anidados (igual que Firestore con { merge: true }).
+function mezclar(base, data) {
+  const out = { ...base };
+  for (const [k, v] of Object.entries(data)) {
+    out[k] = v && typeof v === "object" && !Array.isArray(v) && out[k] && typeof out[k] === "object" ? mezclar(out[k], v) : v;
+  }
+  return out;
+}
 // Soporta "a.b" como ruta (igual que Firestore update) y los centinelas inc/borrarCampo.
 function aplicarCampos(base, data) {
   const out = JSON.parse(JSON.stringify(base));

@@ -4,6 +4,7 @@ import { useCol, agregar, actualizar, borrar } from "../backend";
 import { useApp, Tarjeta, Boton, Encabezado, Modal, Campo, Input, Area, Vacio, confirmar } from "../ui";
 import { CATEGORIAS, cabezasLote, evLote, evDe, fmtNum, fmtFecha, diasEntre, haPotrero, nombreCategoria, tipoMov } from "../logica";
 import { MoverLote, NuevoMovHacienda, revertirMovHacienda, nombrePotrero } from "../acciones";
+import Toros from "./Toros";
 
 export default function Hacienda() {
   const { config, puede } = useApp();
@@ -91,6 +92,8 @@ export default function Hacienda() {
         })}
       </div>
 
+      <div className="mb-6"><Toros /></div>
+
       <h2 className="font-semibold mb-2">Últimos movimientos</h2>
       <Tarjeta className="divide-y divide-stone-100">
         {!movs.length && <p className="p-4 text-sm text-stone-500">Nacimientos, compras, ventas, muertes y cambios de categoría quedan registrados acá.</p>}
@@ -101,7 +104,7 @@ export default function Hacienda() {
             <div key={m.id} className="px-4 py-2.5 flex items-center justify-between gap-2">
               <div className="text-sm">
                 <div><b className={t?.signo > 0 ? "text-green-700" : t?.signo < 0 ? "text-red-700" : ""}>{t?.signo > 0 ? "+" : t?.signo < 0 ? "−" : ""}{m.cantidad}</b> {nombreCategoria(m.categoria).toLowerCase()} · {t?.nombre}{m.tipo === "recategorizacion" ? ` a ${nombreCategoria(m.categoriaNueva).toLowerCase()}` : ""}{destino ? ` → ${destino.nombre}` : ""}</div>
-                <div className="text-stone-500">{fmtFecha(m.fecha)} · {m.loteNombre}{m.kg ? ` · ${fmtNum(m.kg)} kg` : ""}{m.precio ? ` · USD ${m.precio}/kg` : ""}{m.notas ? ` · ${m.notas}` : ""}</div>
+                <div className="text-stone-500">{fmtFecha(m.fecha)} · {m.loteNombre}{m.kg ? ` · ${fmtNum(m.kg)} kg` : ""}{m.precio && puede("dinero") ? ` · USD ${m.precio}/kg` : ""}{m.notas ? ` · ${m.notas}` : ""}</div>
               </div>
               {puede("borrar") && <button className="p-2 text-stone-400 hover:text-red-600" title="Deshacer" onClick={() => confirmar("¿Deshacer este movimiento? Se corrigen las cantidades del lote.") && revertirMovHacienda(m)}><Trash2 size={16} /></button>}
             </div>

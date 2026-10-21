@@ -137,3 +137,24 @@ export function poligonoAGeojson(pts, props = {}) {
   ring.push(ring[0]);
   return { type: "Feature", properties: props, geometry: { type: "Polygon", coordinates: [ring] } };
 }
+
+// "Enderezar": quita los vértices que se apartan menos de `tolerancia` metros de la recta entre
+// sus dos vecinos (los puntos de más que quedan al marcar un alambrado recto), de a uno, empezando
+// por el más alineado. Nunca deja menos de 3 vértices.
+export function enderezar(puntos, tolerancia = 4) {
+  let pts = [...puntos];
+  const o = pts[0];
+  while (pts.length > 3) {
+    let mejor = -1, mejorD = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const a = aLocal(pts[(i - 1 + pts.length) % pts.length], o), p = aLocal(pts[i], o), b = aLocal(pts[(i + 1) % pts.length], o);
+      const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (len * len)));
+      const d = Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+      if (d < mejorD) { mejorD = d; mejor = i; }
+    }
+    if (mejorD >= tolerancia) break;
+    pts.splice(mejor, 1);
+  }
+  return pts;
+}

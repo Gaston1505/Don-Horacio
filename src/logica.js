@@ -60,16 +60,31 @@ export const TIPOS_MOV_HACIENDA = [
 export const tipoMov = (id) => TIPOS_MOV_HACIENDA.find((t) => t.id === id);
 
 // ---------- Potreros ----------
+// "contorno" es el color del borde del potrero en el mapa (según su aptitud actual); el relleno
+// muestra el estado de descanso. Verde = campo natural, amarillo = pradera, azul = verdeos,
+// violeta = campo natural mejorado (pradera que terminó su vida útil).
 export const USOS = [
-  { id: "campo_natural", nombre: "Campo natural", color: "#8AA05A" },
-  { id: "mejoramiento", nombre: "Campo natural mejorado", color: "#6E9A3F" },
-  { id: "pradera", nombre: "Pradera / pastura implantada", color: "#3F8F3A" },
-  { id: "verdeo_invierno", nombre: "Verdeo de invierno", color: "#2E7D6B" },
-  { id: "verdeo_verano", nombre: "Verdeo de verano", color: "#B58B2A" },
-  { id: "agricola", nombre: "Agrícola", color: "#C7A44A" },
-  { id: "monte", nombre: "Monte / bajo / reserva", color: "#5E6B4E" },
-  { id: "otro", nombre: "Otro", color: "#8C8C8C" },
+  { id: "campo_natural", nombre: "Campo natural", color: "#8AA05A", contorno: "#22C55E" },
+  { id: "mejoramiento", nombre: "Campo natural mejorado", color: "#6E9A3F", contorno: "#A855F7" },
+  { id: "pradera", nombre: "Pradera", color: "#3F8F3A", contorno: "#FACC15" },
+  { id: "verdeo_invierno", nombre: "Verdeo de invierno", color: "#2E7D6B", contorno: "#2563EB" },
+  { id: "verdeo_verano", nombre: "Verdeo de verano", color: "#B58B2A", contorno: "#2563EB" },
+  { id: "agricola", nombre: "Agrícola", color: "#C7A44A", contorno: "#F97316" },
+  { id: "monte", nombre: "Monte / bajo / reserva", color: "#5E6B4E", contorno: "#44403C" },
+  { id: "otro", nombre: "Otro", color: "#8C8C8C", contorno: "#FFFFFF" },
 ];
+export const contornoUso = (id) => USOS.find((u) => u.id === id)?.contorno || "#FFFFFF";
+export const esVerdeo = (uso) => uso === "verdeo_invierno" || uso === "verdeo_verano";
+
+// Potencial del potrero (1 a 5), pensado sobre su campo natural original — independiente de la
+// pastura que tenga hoy.
+export const POTENCIAL = {
+  1: { nombre: "Muy bajo", color: "#B91C1C" },
+  2: { nombre: "Bajo", color: "#EA580C" },
+  3: { nombre: "Medio", color: "#CA8A04" },
+  4: { nombre: "Bueno", color: "#65A30D" },
+  5: { nombre: "Muy bueno", color: "#15803D" },
+};
 export const nombreUso = (id) => USOS.find((u) => u.id === id)?.nombre || "—";
 
 export const TIPOS_EVENTO = [
@@ -169,13 +184,15 @@ export function estadisticasPotrero(potrero, ocupaciones, desde, hasta = hoy()) 
 
 // ---------- Permisos ----------
 export const ROLES = {
-  admin: { nombre: "Administrador", desc: "Todo, incluido usuarios y configuración" },
-  encargado: { nombre: "Encargado", desc: "Todo menos gestionar usuarios" },
-  capataz: { nombre: "Capataz", desc: "Registra movimientos, lluvias, novedades y conteos; no borra" },
+  admin: { nombre: "Administrador", desc: "Todo: arma potreros y chacras, usuarios, ventas y costos" },
+  encargado: { nombre: "Encargado", desc: "Ve todo (incluidas ventas y costos) y carga de todo; no gestiona usuarios" },
+  capataz: { nombre: "Capataz", desc: "Registra movimientos, lluvias, novedades, aplicaciones y toros; no ve plata ni borra" },
 };
+// Acciones: "registrar" (cargar el día a día), "editar" (estructura y correcciones), "borrar",
+// "dinero" (ver ventas, precios y costos), "usuarios".
 export function puede(rol, accion) {
   if (rol === "admin") return true;
   if (rol === "encargado") return accion !== "usuarios";
-  if (rol === "capataz") return ["registrar"].includes(accion);
+  if (rol === "capataz") return accion === "registrar";
   return false;
 }

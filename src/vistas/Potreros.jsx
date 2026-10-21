@@ -1,12 +1,13 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Plus, Pencil, Printer, Download, ArrowLeft, Map as MapIcon, ClipboardPlus, ArrowRightLeft, LayoutGrid, Search } from "lucide-react";
-import { useCol, actualizar } from "../backend";
-import { useApp, Tarjeta, Boton, BadgeEstado, Encabezado, Dato, Vacio, Modal, Input } from "../ui";
-import { estadoPotrero, estadisticasPotrero, haPotrero, fmtNum, fmtFecha, nombreUso, USOS, nombreEvento, hoy, sumarDias, diasEntre } from "../logica";
+import { useCol, actualizar, agregar, borrar } from "../backend";
+import { useApp, Tarjeta, Boton, BadgeEstado, Encabezado, Dato, Vacio, Modal, Input, Area, confirmar } from "../ui";
+import { estadoPotrero, estadisticasPotrero, haPotrero, fmtNum, fmtFecha, nombreUso, USOS, POTENCIAL, nombreEvento, hoy, sumarDias, diasEntre } from "../logica";
 import { lados, perimetro, fmtMetros, superficieHa } from "../geo";
 import { Croquis, descargarSvg, imprimirCroquis } from "../Croquis";
 import { MoverLote, NuevoEvento, EditarOcupacion, potrerosOrdenados, nombrePotrero } from "../acciones";
 import FormPotrero from "../FormPotrero";
+import { CiclosDePotrero } from "./Chacras";
 
 export default function Potreros() {
   const { param } = useApp();
@@ -118,9 +119,9 @@ function Ficha({ id }) {
         {puede("registrar") && <Boton variante="secundario" onClick={() => setModal({ t: "mover", potreroId: e.estado === "ocupado" ? undefined : p.id, loteId: e.abiertas?.[0]?.loteId })}><ArrowRightLeft size={18} /> {e.estado === "ocupado" ? "Mover lote" : "Meter lote"}</Boton>}
         {puede("editar") && <Boton onClick={() => setModal({ t: "editar" })}><Pencil size={18} /> Editar</Boton>}
       </Encabezado>
-      <div className="flex gap-1 mb-4 bg-stone-200/70 p-1 rounded-xl w-fit">
-        {[["resumen", "Resumen"], ["croquis", "Croquis y alambrados"], ["historial", "Historial"]].map(([k, n]) => (
-          <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === k ? "bg-white shadow" : "text-stone-600"}`}>{n}</button>
+      <div className="flex gap-1 mb-4 bg-stone-200/70 p-1 rounded-xl w-fit max-w-full overflow-x-auto">
+        {[["resumen", "Resumen"], ["chacras", "Chacras"], ["croquis", "Croquis y alambrados"], ["historial", "Historial"]].map(([k, n]) => (
+          <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${tab === k ? "bg-white shadow" : "text-stone-600"}`}>{n}</button>
         ))}
       </div>
 
@@ -160,12 +161,15 @@ function Ficha({ id }) {
               <Fila k="Aguada" v={p.aguada || "—"} />
               <Fila k="Descanso objetivo" v={`${e.objetivo} días`} />
               <Fila k="En rotación" v={p.enRotacion === false ? "No" : "Sí"} />
+              <Fila k="Potencial" v={p.potencial ? <Potencial n={p.potencial} /> : "Sin calificar"} />
             </dl>
             {p.notas && <p className="text-sm text-stone-600 mt-3 whitespace-pre-wrap">{p.notas}</p>}
           </Tarjeta>
+          <Comentarios potreroId={p.id} />
         </div>
       )}
 
+      {tab === "chacras" && <CiclosDePotrero potrero={p} />}
       {tab === "croquis" && <CroquisPotrero p={p} eventos={eventos} />}
 
       {tab === "historial" && (
@@ -177,6 +181,57 @@ function Ficha({ id }) {
       {modal?.t === "mover" && <MoverLote potreroId={modal.potreroId} loteId={modal.loteId} onCerrar={() => setModal(null)} />}
       {modal?.t === "ocup" && <EditarOcupacion ocupacion={modal.o} onCerrar={() => setModal(null)} />}
     </div>
+  );
+}
+
+export function Potencial({ n }) {
+  const c = POTENCIAL[n];
+  if (!c) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5" title={`Potencial ${n} de 5 · ${c.nombre}`}>
+      <span className="inline-flex gap-0.5">{[1, 2, 3, 4, 5].map((i) => <span key={i} className="w-2 h-3 rounded-sm" style={{ background: i <= n ? c.color : "#E7E5E4" }} />)}</span>
+      <span>{n} · {c.nombre}</span>
+    </span>
+  );
+}
+
+// Comentarios con fecha: el historial de lo que se fue observando en el potrero.
+function Comentarios({ potreroId }) {
+  const { perfil, puede } = useApp();
+  const todos = useCol("comentarios");
+  const [texto, setTexto] = useState("");
+  const [fecha, setFecha] = useState(hoy());
+  const lista = todos.filter((c) => c.potreroId === potreroId).sort((a, b) => (b.fecha + (b.creadoEn || "")).localeCompare(a.fecha + (a.creadoEn || "")));
+  const guardar = () => {
+    if (!texto.trim()) return;
+    agregar("comentarios", { potreroId, fecha, texto: texto.trim(), autor: perfil.nombre });
+    setTexto(""); setFecha(hoy());
+  };
+  return (
+    <Tarjeta className="p-4 lg:col-span-3">
+      <h2 className="font-semibold mb-3">Comentarios</h2>
+      {puede("registrar") && (
+        <div className="space-y-2 mb-3">
+          <Area value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="¿Qué viste en el potrero? (pasto, malezas, agua, alambrado…)" />
+          <div className="flex gap-2 items-center">
+            <input type="date" className="rounded-xl border border-stone-300 px-3 py-2" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} />
+            <Boton onClick={guardar} disabled={!texto.trim()}>Agregar comentario</Boton>
+          </div>
+        </div>
+      )}
+      {!lista.length && <p className="text-sm text-stone-500">Sin comentarios todavía.</p>}
+      <div className="divide-y divide-stone-100">
+        {lista.map((c) => (
+          <div key={c.id} className="py-2 flex gap-3 justify-between">
+            <div className="min-w-0">
+              <div className="text-xs text-stone-500"><b className="text-stone-700">{fmtFecha(c.fecha)}</b>{c.autor ? ` · ${c.autor}` : ""}</div>
+              <div className="text-sm whitespace-pre-wrap">{c.texto}</div>
+            </div>
+            {puede("borrar") && <button className="text-xs text-stone-400 hover:text-red-600 shrink-0" onClick={() => confirmar("¿Borrar este comentario?") && borrar("comentarios", c.id)}>Borrar</button>}
+          </div>
+        ))}
+      </div>
+    </Tarjeta>
   );
 }
 

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { agregar, actualizar, borrar, useCol } from "./backend";
 import { Modal, Boton, Campo, Input, Select, Area, useApp, confirmar } from "./ui";
-import { USOS } from "./logica";
+import { USOS, POTENCIAL } from "./logica";
 import { superficieHa, perimetro, fmtMetros } from "./geo";
 
 export default function FormPotrero({ potrero, geometria, onCerrar, onGuardado }) {
@@ -14,6 +14,7 @@ export default function FormPotrero({ potrero, geometria, onCerrar, onGuardado }
     hectareas: potrero?.hectareas || "", especies: potrero?.especies || "", fechaImplantacion: potrero?.fechaImplantacion || "",
     descansoObjetivo: potrero?.descansoObjetivo || "", ocupacionMaxima: potrero?.ocupacionMaxima || "",
     enRotacion: potrero?.enRotacion !== false, aguada: potrero?.aguada || "", notas: potrero?.notas || "",
+    potencial: potrero?.potencial || null,
   });
   const set = (k) => (e) => setD({ ...d, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
   const guardar = () => {
@@ -58,9 +59,22 @@ export default function FormPotrero({ potrero, geometria, onCerrar, onGuardado }
         <Campo label="Descanso objetivo (días)" ayuda={`Vacío = general (${config.descansoObjetivo || 45})`}><Input type="number" value={d.descansoObjetivo} onChange={set("descansoObjetivo")} /></Campo>
         <Campo label="Ocupación máxima (días)" ayuda={`Vacío = general (${config.ocupacionMaxima || 7})`}><Input type="number" value={d.ocupacionMaxima} onChange={set("ocupacionMaxima")} /></Campo>
       </div>
+      <div>
+        <div className="text-sm font-medium text-stone-700 mb-1">Potencial del potrero</div>
+        <div className="flex gap-1.5">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button key={n} type="button" onClick={() => setD({ ...d, potencial: d.potencial === n ? null : n })}
+              className={`flex-1 rounded-xl border py-2 text-sm font-semibold ${d.potencial === n ? "text-white border-transparent" : "bg-white border-stone-300 text-stone-700"}`}
+              style={d.potencial === n ? { background: POTENCIAL[n].color } : undefined}>
+              {n}<span className="block text-[10px] font-normal">{POTENCIAL[n].nombre}</span>
+            </button>
+          ))}
+        </div>
+        <span className="block text-xs text-stone-500 mt-1">Pensado desde su campo natural original (suelo, relieve, agua). No depende de la pastura que tenga hoy.</span>
+      </div>
       <Campo label="Aguada"><Input value={d.aguada} onChange={set("aguada")} placeholder="Tajamar, arroyo, bebedero compartido con el 8…" /></Campo>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.enRotacion} onChange={set("enRotacion")} className="w-5 h-5" /> Entra en la rotación de pastoreo</label>
-      <Campo label="Notas"><Area value={d.notas} onChange={set("notas")} /></Campo>
+      <Campo label="Descripción fija" ayuda="Lo que no cambia (suelo, accesos, particularidades). Las novedades van como comentarios con fecha en la ficha."><Area value={d.notas} onChange={set("notas")} /></Campo>
     </Modal>
   );
 }
