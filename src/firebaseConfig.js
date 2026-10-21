@@ -9,12 +9,12 @@
 // que da la consola (Configuración del proyecto → Tus apps → Web). Estos valores NO son secretos:
 // el acceso lo controlan las reglas de firestore.rules de esta carpeta.
 export const firebaseConfig = {
-  apiKey: "PEGAR_ACA",
-  authDomain: "PEGAR_ACA",
-  projectId: "PEGAR_ACA",
-  storageBucket: "PEGAR_ACA",
-  messagingSenderId: "PEGAR_ACA",
-  appId: "PEGAR_ACA",
+  apiKey: "AIzaSyB0tW7H0XhcIL7Xljsa9GAs0jUzWSHsX4s",
+  authDomain: "don-horacio.firebaseapp.com",
+  projectId: "don-horacio",
+  storageBucket: "don-horacio.firebasestorage.app",
+  messagingSenderId: "137980845852",
+  appId: "1:137980845852:web:d1cc6a3438a28e7b9364d9",
 };
 
 export const firebaseConfigurado = !Object.values(firebaseConfig).some((v) => !v || v === "PEGAR_ACA");
