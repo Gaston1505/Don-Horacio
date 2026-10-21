@@ -106,11 +106,21 @@ const LIQUIDACIONES_RECIBIDAS = [
     fecha: "2026-09-09", fechaCobro: "2026-10-23", firma: "María del Rosario Arredondo",
     consignatario: "Campo Mercado", frigorifico: "Chiadel SA Frigorífico Las Moras", nroLiquidacion: "50327",
     estado: "cerrada", comisionPct: 1.5, impuestos: IMPUESTOS_DEFECTO, descontado: true, cobrada: false,
-    notas: "e-Factura A 17081 · Neg. N° 6320 · Guía consig. D424023 · Tropa 1836 · Cotización 40,216 · Venta a crédito",
+    notas: "e-Factura A 17081 · Neg. N° 6320 · Guía consig. D424023 · Tropa 1836 · Cotización 40,216 · Venta a crédito · Mismo camión que la liq. 50329 (Gastón Gibernau)",
     lineas: [
       { id: "l1", categoria: "novillo", cabezas: 18, kgVivo: 11105, rendimiento: 55.34, kgCarcasa: 6145.2, precio: 6.0963, loteId: "" },
       { id: "l2", categoria: "vaca", cabezas: 15, kgVivo: 8475, rendimiento: 53.22, kgCarcasa: 4510.1, precio: 5.82, loteId: "" },
       { id: "l3", categoria: "vaquillona", cabezas: 1, kgVivo: 420, rendimiento: 51.64, kgCarcasa: 216.9, precio: 5.65, loteId: "" },
+    ],
+  },
+  {
+    id: "liq-50329",
+    fecha: "2026-09-09", fechaCobro: "2026-10-23", firma: "Gastón Gibernau",
+    consignatario: "Campo Mercado", frigorifico: "Chiadel SA Frigorífico Las Moras", nroLiquidacion: "50329",
+    estado: "cerrada", comisionPct: 1.5, impuestos: IMPUESTOS_DEFECTO, descontado: true, cobrada: false,
+    notas: "e-Ticket A 5549 · Neg. N° 6321 · Guía consig. D607686 · Tropa 1837 · Cotización 40,216 · Venta a crédito · Mismo camión que la liq. 50327 (María del Rosario Arredondo)",
+    lineas: [
+      { id: "l1", categoria: "vaca", cabezas: 1, kgVivo: 585, rendimiento: 53.04, kgCarcasa: 310.3, precio: 5.82, loteId: "" },
     ],
   },
 ];
