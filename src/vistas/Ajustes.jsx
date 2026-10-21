@@ -98,7 +98,7 @@ function Usuarios({ yo }) {
       <div className="divide-y divide-stone-100">
         {usuarios.map((u) => (
           <div key={u.id} className="py-2 flex items-center justify-between gap-2">
-            <div className="min-w-0"><div className="font-medium">{u.nombre}</div><div className="text-sm text-stone-500 truncate">{u.email || "Entró con código"}</div></div>
+            <div className="min-w-0"><div className="font-medium">{u.nombre}</div><div className="text-sm text-stone-500 truncate">{u.email || "Entró con código"}{u.creadoEn ? ` · ${new Date(u.creadoEn).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}{usuarios.filter((x) => x.nombre?.trim().toLowerCase() === u.nombre?.trim().toLowerCase()).length > 1 ? " · repetido" : ""}</div></div>
             <div className="flex items-center gap-1">
               <select className="border rounded-lg px-2 py-1 text-sm" value={u.rol} disabled={u.id === yo} onChange={(e) => actualizar("usuarios", u.id, { rol: e.target.value })}>
                 {Object.entries(ROLES).map(([k, r]) => <option key={k} value={k}>{r.nombre}</option>)}
@@ -108,6 +108,7 @@ function Usuarios({ yo }) {
           </div>
         ))}
       </div>
+      <p className="text-xs text-stone-500 mt-3">Si alguien aparece repetido es porque entró desde dos lugares (por ejemplo Safari y la app instalada, que en el iPhone guardan la sesión por separado). Quitá el más viejo; si a esa persona le aparece "Hay que volver a entrar", que entre de nuevo con el código desde la app instalada.</p>
       <div className="text-xs text-stone-500 mt-3 space-y-0.5">{Object.values(ROLES).map((r) => <div key={r.nombre}><b>{r.nombre}:</b> {r.desc}</div>)}</div>
       {alta && <AltaUsuario onCerrar={() => setAlta(false)} />}
     </Tarjeta>

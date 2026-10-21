@@ -136,6 +136,10 @@ function ConSesion({ user }) {
 // reglas de Firestore solo permiten esto mientras no exista config/instalacion.
 function SinPerfil({ user, hayAdmin }) {
   const [nombre, setNombre] = useState("");
+  // Ingreso con código: el perfil aparece en un instante. Si no aparece, es que el administrador
+  // quitó este acceso (o el ingreso no se completó) y hay que volver a entrar.
+  const [demorado, setDemorado] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setDemorado(true), 6000); return () => clearTimeout(t); }, []);
   const crear = () => {
     escribir([
       { op: "set", col: "usuarios", id: user.uid, data: { nombre: nombre || user.email, email: user.email, rol: "admin" } },
@@ -147,8 +151,14 @@ function SinPerfil({ user, hayAdmin }) {
     <Pantalla>
       <Tarjeta className="w-full max-w-sm p-6 space-y-4">
         {!user.email ? (
-          // Ingreso con código: el perfil se está guardando (aparece en un instante).
-          <p className="text-stone-600 text-sm flex items-center gap-2"><Loader2 className="animate-spin" size={18} /> Entrando…</p>
+          demorado ? (
+            <>
+              <h1 className="text-xl font-bold">Hay que volver a entrar</h1>
+              <p className="text-stone-600 text-sm">Este teléfono ya no tiene acceso (puede que se haya quitado desde Ajustes). Tocá "Salir" y entrá de nuevo con tu nombre y el código del campo.</p>
+            </>
+          ) : (
+            <p className="text-stone-600 text-sm flex items-center gap-2"><Loader2 className="animate-spin" size={18} /> Entrando…</p>
+          )
         ) : hayAdmin ? (
           <>
             <h1 className="text-xl font-bold">Cuenta sin acceso</h1>
