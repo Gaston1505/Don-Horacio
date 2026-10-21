@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import { Plus, Calculator, Settings2, Trash2, ArrowLeft, Pencil } from "lucide-react";
 import { useCol, useDocSub, escribir, fijar, nuevoId, inc } from "../backend";
 import { useApp, Tarjeta, Boton, Encabezado, Campo, Input, Select, Area, Vacio, Dato, confirmar } from "../ui";
-import { CATEGORIAS, nombreCategoria, fmtNum, fmtFecha, hoy } from "../logica";
+import { CATEGORIAS, nombreCategoria, fmtNum, fmtFecha, hoy, diasEntre } from "../logica";
 
 const FIRMAS_DEFECTO = ["María del Rosario Arredondo", "Gastón Gibernau"];
 
@@ -98,38 +98,118 @@ export default function Ventas() {
   );
 }
 
+// Liquidaciones que Gastón pasó para dejar cargadas en el historial. Se cargan con un botón
+// (con id fijo, así no se duplican) la primera vez que alguien con acceso a plata abre Ventas.
+const LIQUIDACIONES_RECIBIDAS = [
+  {
+    id: "liq-50327",
+    fecha: "2026-09-09", fechaCobro: "2026-10-23", firma: "María del Rosario Arredondo",
+    consignatario: "Campo Mercado", frigorifico: "Chiadel SA Frigorífico Las Moras", nroLiquidacion: "50327",
+    estado: "cerrada", comisionPct: 1.5, impuestos: IMPUESTOS_DEFECTO, descontado: true, cobrada: false,
+    notas: "e-Factura A 17081 · Neg. N° 6320 · Guía consig. D424023 · Tropa 1836 · Cotización 40,216 · Venta a crédito",
+    lineas: [
+      { id: "l1", categoria: "novillo", cabezas: 18, kgVivo: 11105, rendimiento: 55.34, kgCarcasa: 6145.2, precio: 6.0963, loteId: "" },
+      { id: "l2", categoria: "vaca", cabezas: 15, kgVivo: 8475, rendimiento: 53.22, kgCarcasa: 4510.1, precio: 5.82, loteId: "" },
+      { id: "l3", categoria: "vaquillona", cabezas: 1, kgVivo: 420, rendimiento: 51.64, kgCarcasa: 216.9, precio: 5.65, loteId: "" },
+    ],
+  },
+];
+
+export function estadoCobro(v) {
+  if (v.estado === "simulacion") return { texto: "Simulación", color: "#6B7280" };
+  if (v.cobrada) return { texto: "Cobrada", color: "#15803D" };
+  if (!v.fechaCobro) return { texto: "Sin fecha de cobro", color: "#6B7280" };
+  const d = diasEntre(hoy(), v.fechaCobro);
+  if (d < 0) return { texto: `Vencida hace ${-d} d`, color: "#B91C1C" };
+  if (d === 0) return { texto: "Se cobra hoy", color: "#B45309" };
+  return { texto: `Se cobra en ${d} d (${fmtFecha(v.fechaCobro, false)})`, color: "#B45309" };
+}
+
 function ListaVentas() {
   const { ir } = useApp();
   const ventas = useCol("ventas");
-  const anios = [...new Set(ventas.map((v) => v.fecha.slice(0, 4)))].sort().reverse();
-  const [anio, setAnio] = useState(anios[0] || hoy().slice(0, 4));
+  const anios = [...new Set([hoy().slice(0, 4), ...ventas.map((v) => v.fecha.slice(0, 4))])].sort().reverse();
+  const [anio, setAnio] = useState(anios[0]);
+  const reales = ventas.filter((v) => v.estado !== "simulacion");
   const delAnio = ventas.filter((v) => v.fecha.startsWith(anio)).sort((a, b) => b.fecha.localeCompare(a.fecha));
-  const tot = delAnio.map(calcularVenta).reduce((s, c) => ({ neto: s.neto + c.neto, cab: s.cab + c.cabezas, kg: s.kg + c.kgCarcasa }), { neto: 0, cab: 0, kg: 0 });
-  if (!ventas.length) return <Tarjeta><Vacio icono={Calculator} titulo="Sin ventas cargadas" texto="Cargá cada venta a frigorífico con la firma, las categorías, los kilos, el rendimiento y el precio. La app calcula comisión, impuestos y neto." /></Tarjeta>;
+  const calc = delAnio.filter((v) => v.estado !== "simulacion").map(calcularVenta);
+  const t = calc.reduce((s, c) => ({ neto: s.neto + c.neto, bruto: s.bruto + c.bruto, desc: s.desc + c.comision + c.totalImp, cab: s.cab + c.cabezas, kgV: s.kgV + c.kgVivo, kgC: s.kgC + c.kgCarcasa }), { neto: 0, bruto: 0, desc: 0, cab: 0, kgV: 0, kgC: 0 });
+  const porCobrar = reales.filter((v) => !v.cobrada && v.fechaCobro).sort((a, b) => a.fechaCobro.localeCompare(b.fechaCobro));
+  const sinCargar = LIQUIDACIONES_RECIBIDAS.filter((l) => !ventas.some((v) => v.id === l.id || (v.nroLiquidacion && v.nroLiquidacion === l.nroLiquidacion)));
+  const cargar = () => escribir(sinCargar.map(({ id, ...data }) => ({ op: "set", col: "ventas", id, data })));
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <select className="border rounded-lg px-2 py-1 text-sm" value={anio} onChange={(e) => setAnio(e.target.value)}>{anios.map((a) => <option key={a}>{a}</option>)}</select>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <Tarjeta className="p-4"><Dato label={`Neto ${anio}`} valor={`USD ${fmtNum(tot.neto)}`} /></Tarjeta>
-        <Tarjeta className="p-4"><Dato label="Cabezas" valor={fmtNum(tot.cab)} /></Tarjeta>
-        <Tarjeta className="p-4"><Dato label="Kg carcasa" valor={fmtNum(tot.kg)} /></Tarjeta>
-      </div>
-      <Tarjeta className="divide-y divide-stone-100">
-        {delAnio.map((v) => {
-          const c = calcularVenta(v);
-          return (
-            <button key={v.id} onClick={() => ir("ventas", v.id)} className="w-full text-left px-4 py-3 hover:bg-stone-50 flex justify-between gap-3">
-              <div className="text-sm min-w-0">
-                <div className="font-semibold">{fmtFecha(v.fecha)} · {v.frigorifico || "Frigorífico"}{v.nroLiquidacion ? ` · liq. ${v.nroLiquidacion}` : ""}</div>
-                <div className="text-stone-600 truncate">{v.firma} · {c.cabezas} cab. ({c.lineas.map((l) => nombreCategoria(l.categoria).toLowerCase()).join(", ")}) · rend. {fmtNum(c.rendProm, 1)}%</div>
-              </div>
-              <div className="text-right shrink-0"><div className="font-semibold">USD {fmtNum(c.neto)}</div><div className="text-xs text-stone-500">{v.estado === "simulacion" ? "Simulación" : `USD ${fmtNum(c.porCabeza)}/cab.`}</div></div>
-            </button>
-          );
-        })}
-      </Tarjeta>
+      {sinCargar.length > 0 && (
+        <Tarjeta className="p-4 border-blue-300 bg-blue-50 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-blue-900">
+            <b>Liquidaciones recibidas para cargar:</b>{" "}
+            {sinCargar.map((l) => `N° ${l.nroLiquidacion} · ${fmtFecha(l.fecha)} · ${l.firma} · ${l.lineas.reduce((s, x) => s + x.cabezas, 0)} cab.`).join(" / ")}
+          </div>
+          <Boton onClick={cargar}>Cargar en el historial</Boton>
+        </Tarjeta>
+      )}
+      {porCobrar.length > 0 && (
+        <Tarjeta className="p-4">
+          <h2 className="font-semibold mb-2">Por cobrar</h2>
+          {porCobrar.map((v) => {
+            const ec = estadoCobro(v);
+            return (
+              <button key={v.id} onClick={() => ir("ventas", v.id)} className="w-full flex justify-between gap-2 text-sm py-1 text-left">
+                <span>{v.firma} · liq. {v.nroLiquidacion || "—"} · {v.frigorifico}</span>
+                <span className="text-right"><b>USD {fmtNum(calcularVenta(v).neto, 2)}</b> <span style={{ color: ec.color }}>· {ec.texto}</span></span>
+              </button>
+            );
+          })}
+        </Tarjeta>
+      )}
+      {!ventas.length && !sinCargar.length && <Tarjeta><Vacio icono={Calculator} titulo="Sin ventas cargadas" texto="Cargá cada venta a frigorífico con la firma, las categorías, los kilos, el rendimiento y el precio. La app calcula comisión, impuestos y neto." /></Tarjeta>}
+      {ventas.length > 0 && (
+        <>
+          <div className="flex items-center gap-2">
+            <select className="border rounded-lg px-2 py-1 text-sm" value={anio} onChange={(e) => setAnio(e.target.value)}>{anios.map((a) => <option key={a}>{a}</option>)}</select>
+            <span className="text-sm text-stone-500">{calc.length} venta(s)</span>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Tarjeta className="p-4"><Dato label={`Neto ${anio}`} valor={`USD ${fmtNum(t.neto)}`} sub={`Bruto USD ${fmtNum(t.bruto)} · descuentos USD ${fmtNum(t.desc)}`} /></Tarjeta>
+            <Tarjeta className="p-4"><Dato label="Cabezas" valor={fmtNum(t.cab)} sub={t.cab ? `USD ${fmtNum(t.neto / t.cab)} netos por cabeza` : null} /></Tarjeta>
+            <Tarjeta className="p-4"><Dato label="Kg carcasa" valor={fmtNum(t.kgC)} sub={t.kgV ? `Rendimiento promedio ${fmtNum((t.kgC / t.kgV) * 100, 2)}%` : null} /></Tarjeta>
+            <Tarjeta className="p-4"><Dato label="Precio promedio" valor={t.kgC ? `USD ${fmtNum(t.bruto / t.kgC, 3)}` : "—"} sub={t.kgV ? `por kg carcasa · USD ${fmtNum(t.neto / t.kgV, 3)} neto por kg en pie` : null} /></Tarjeta>
+          </div>
+          <Tarjeta className="overflow-x-auto">
+            <table className="w-full text-sm tabular-nums" style={{ minWidth: 820 }}>
+              <thead>
+                <tr className="text-left text-stone-500 border-b">
+                  <th className="p-3">Fecha / firma</th><th className="p-3">Categorías</th><th className="p-3 text-right">Cab.</th>
+                  <th className="p-3 text-right">Kg pie</th><th className="p-3 text-right">Kg carc.</th><th className="p-3 text-right">Rend.</th>
+                  <th className="p-3 text-right">USD/kg</th><th className="p-3 text-right">Bruto</th><th className="p-3 text-right">Comisión + imp.</th>
+                  <th className="p-3 text-right">Neto</th><th className="p-3">Cobro</th>
+                </tr>
+              </thead>
+              <tbody>
+                {delAnio.map((v) => {
+                  const c = calcularVenta(v);
+                  const ec = estadoCobro(v);
+                  return (
+                    <tr key={v.id} className="border-b border-stone-100 hover:bg-stone-50 cursor-pointer align-top" onClick={() => ir("ventas", v.id)}>
+                      <td className="p-3"><div className="font-semibold">{fmtFecha(v.fecha)}</div><div className="text-xs text-stone-500">{v.firma}{v.nroLiquidacion ? ` · liq. ${v.nroLiquidacion}` : ""}</div><div className="text-xs text-stone-500">{v.frigorifico}</div></td>
+                      <td className="p-3 text-xs">{c.lineas.map((l) => <div key={l.id}>{l.cabezas} {nombreCategoria(l.categoria).toLowerCase()} · {fmtNum(l.kgVivo ? (l.kgCarcasa / l.kgVivo) * 100 : 0, 2)}% · USD {fmtNum(l.precio, 4)}</div>)}</td>
+                      <td className="p-3 text-right">{c.cabezas}</td>
+                      <td className="p-3 text-right">{fmtNum(c.kgVivo)}</td>
+                      <td className="p-3 text-right">{fmtNum(c.kgCarcasa, 1)}</td>
+                      <td className="p-3 text-right">{fmtNum(c.rendProm, 2)}%</td>
+                      <td className="p-3 text-right">{c.kgCarcasa ? fmtNum(c.bruto / c.kgCarcasa, 3) : "—"}</td>
+                      <td className="p-3 text-right">{fmtNum(c.bruto, 2)}</td>
+                      <td className="p-3 text-right">− {fmtNum(c.comision + c.totalImp, 2)}</td>
+                      <td className="p-3 text-right font-bold">{fmtNum(c.neto, 2)}</td>
+                      <td className="p-3 text-xs" style={{ color: ec.color }}>{ec.texto}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Tarjeta>
+        </>
+      )}
     </div>
   );
 }
@@ -230,6 +310,9 @@ function EditorVenta({ id, simulacion }) {
             <Campo label="Comisión (%)"><Input type="number" step="0.01" value={e.comisionPct} onChange={set("comisionPct")} /></Campo>
             {!simulacion && <Campo label="N° de liquidación"><Input value={e.nroLiquidacion || ""} onChange={set("nroLiquidacion")} /></Campo>}
             {!simulacion && <Campo label="Fecha de cobro"><Input type="date" value={e.fechaCobro || ""} onChange={set("fechaCobro")} /></Campo>}
+            {!simulacion && e.estado === "cerrada" && (
+              <label className="col-span-2 flex items-center gap-2 text-sm"><input type="checkbox" className="w-5 h-5" checked={!!e.cobrada} onChange={(ev) => setV({ ...e, cobrada: ev.target.checked })} /> Cobrada</label>
+            )}
             {!simulacion && (
               <Campo label="Estado" className="col-span-2">
                 <Select value={e.estado} onChange={set("estado")}><option value="cerrada">Cerrada</option><option value="simulacion">Simulación / a confirmar</option></Select>

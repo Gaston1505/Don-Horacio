@@ -5,9 +5,11 @@ import { useApp, Tarjeta, Boton, BadgeEstado, Dato, Encabezado } from "../ui";
 import { estadoPotrero, cabezasLote, evLote, haPotrero, fmtNum, fmtFecha, diasEntre, hoy, nombreEvento } from "../logica";
 import { MoverLote, NuevaLluvia, NuevoEvento, NuevoMovHacienda, potrerosOrdenados, nombrePotrero } from "../acciones";
 import { cargarDatosDeEjemplo } from "../demo";
+import { calcularVenta, estadoCobro } from "./Ventas";
 
 export default function Inicio() {
-  const { perfil, config, ir } = useApp();
+  const { perfil, config, ir, puede } = useApp();
+  const ventas = useCol("ventas", puede("dinero"));
   const potreros = useCol("potreros");
   const lotes = useCol("lotes");
   const ocupaciones = useCol("ocupaciones");
@@ -30,6 +32,11 @@ export default function Inicio() {
   const alertas = [];
   for (const { p, e } of estados) {
     if (e.estado === "ocupado" && e.diasOcupado > e.ocupMax) alertas.push({ texto: `${nombrePotrero(p)}: lleva ${e.diasOcupado} días ocupado (máximo sugerido ${e.ocupMax}).`, ir: () => ir("potreros", p.id) });
+  }
+  // Cobros de ventas que vencen en la próxima semana (solo para quien ve plata)
+  for (const v of ventas) {
+    if (v.cobrada || !v.fechaCobro || v.estado === "simulacion" || diasEntre(hoy(), v.fechaCobro) > 7) continue;
+    alertas.push({ texto: `Cobro de ${v.firma} (liq. ${v.nroLiquidacion || "—"}): USD ${fmtNum(calcularVenta(v).neto)} · ${estadoCobro(v).texto.toLowerCase()}.`, ir: () => ir("ventas", v.id) });
   }
   for (const l of activos) if (!l.potreroId && cabezasLote(l) > 0) alertas.push({ texto: `El lote ${l.nombre} no está asignado a ningún potrero.`, ir: () => setModal({ t: "mover", loteId: l.id }) });
   const recomendados = potrerosOrdenados(potreros, ocupaciones, config).filter((x) => x.e.estado === "listo").slice(0, 5);
