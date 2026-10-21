@@ -3,7 +3,7 @@ import {
   Home, RefreshCw, Map as MapIcon, LayoutGrid, Beef, CloudRain, Settings, MoreHorizontal,
   Wifi, WifiOff, CloudUpload, LogOut, Loader2,
 } from "lucide-react";
-import { MODO_PRUEBA, useAuth, useDocSub, useSync, ingresar, salir, recuperarClave, escribir } from "./backend";
+import { MODO_PRUEBA, useAuth, useDocSub, useSync, ingresar, entrarConCodigo, salir, recuperarClave, escribir } from "./backend";
 import { Ctx, Boton, Campo, Input, Tarjeta } from "./ui";
 import { puede, ROLES } from "./logica";
 import Inicio from "./vistas/Inicio";
@@ -53,15 +53,24 @@ function Pantalla({ children }) {
 }
 
 function Login() {
+  const [modo, setModo] = useState("codigo"); // codigo | admin
+  const [nombre, setNombre] = useState("");
+  const [codigo, setCodigo] = useState("");
   const [email, setEmail] = useState("");
   const [clave, setClave] = useState("");
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const sinSenal = "Sin conexión: la primera vez hay que entrar con señal. Después queda abierta y funciona sin señal.";
   const entrar = async (e) => {
     e.preventDefault();
     setError(""); setEnviando(true);
-    try { await ingresar(email, clave); } catch (err) {
-      setError(navigator.onLine ? "Email o contraseña incorrectos." : "Sin conexión: la primera vez hay que ingresar con señal. Después queda la sesión abierta y funciona sin señal.");
+    try {
+      if (modo === "codigo") await entrarConCodigo(nombre, codigo);
+      else await ingresar(email, clave);
+    } catch (err) {
+      if (!navigator.onLine) setError(sinSenal);
+      else if (modo === "codigo") setError(err.code === "auth/admin-restricted-operation" || err.code === "auth/operation-not-allowed" ? "El ingreso con código todavía no está activado en Firebase." : "Ese código no es válido. Pedíselo a Gastón.");
+      else setError("Email o contraseña incorrectos.");
     } finally { setEnviando(false); }
   };
   return (
@@ -74,21 +83,35 @@ function Login() {
         </div>
         {MODO_PRUEBA && (
           <p className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 mb-4">
-            <b>Modo prueba:</b> la app todavía no está conectada a Firebase. Ingresá con cualquier email; los datos quedan solo en este dispositivo.
+            <b>Modo prueba:</b> la app todavía no está conectada a Firebase. Los datos quedan solo en este dispositivo{modo === "codigo" ? "; cualquier código sirve" : ""}.
           </p>
         )}
         <form onSubmit={entrar} className="space-y-3">
-          <Campo label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" /></Campo>
-          {!MODO_PRUEBA && <Campo label="Contraseña"><Input type="password" value={clave} onChange={(e) => setClave(e.target.value)} required autoComplete="current-password" /></Campo>}
+          {modo === "codigo" ? (
+            <>
+              <Campo label="Tu nombre"><Input value={nombre} onChange={(e) => setNombre(e.target.value)} required placeholder="Ej: Martín" autoComplete="name" /></Campo>
+              <Campo label="Código del campo" ayuda="Te lo pasa Gastón. Se pone una sola vez: después queda guardado en este teléfono.">
+                <Input value={codigo} onChange={(e) => setCodigo(e.target.value)} required autoCapitalize="characters" autoComplete="off" inputMode="text" />
+              </Campo>
+            </>
+          ) : (
+            <>
+              <Campo label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" /></Campo>
+              {!MODO_PRUEBA && <Campo label="Contraseña"><Input type="password" value={clave} onChange={(e) => setClave(e.target.value)} required autoComplete="current-password" /></Campo>}
+            </>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <Boton type="submit" className="w-full" disabled={enviando}>{enviando ? "Ingresando…" : "Ingresar"}</Boton>
-          {!MODO_PRUEBA && (
+          <Boton type="submit" className="w-full" disabled={enviando}>{enviando ? "Entrando…" : "Entrar"}</Boton>
+          {modo === "admin" && !MODO_PRUEBA && (
             <button type="button" className="text-sm text-campo-700 w-full" onClick={async () => {
               if (!email) return setError("Escribí tu email arriba y tocá de nuevo.");
               try { await recuperarClave(email); setError("Te mandamos un email para cambiar la contraseña."); } catch { setError("No se pudo enviar el email."); }
             }}>Olvidé mi contraseña</button>
           )}
         </form>
+        <button type="button" className="text-xs text-stone-500 w-full mt-5" onClick={() => { setModo(modo === "codigo" ? "admin" : "codigo"); setError(""); }}>
+          {modo === "codigo" ? "Soy el administrador (entrar con email)" : "Entrar con nombre y código"}
+        </button>
       </Tarjeta>
     </Pantalla>
   );
@@ -117,7 +140,10 @@ function SinPerfil({ user, hayAdmin }) {
   return (
     <Pantalla>
       <Tarjeta className="w-full max-w-sm p-6 space-y-4">
-        {hayAdmin ? (
+        {!user.email ? (
+          // Ingreso con código: el perfil se está guardando (aparece en un instante).
+          <p className="text-stone-600 text-sm flex items-center gap-2"><Loader2 className="animate-spin" size={18} /> Entrando…</p>
+        ) : hayAdmin ? (
           <>
             <h1 className="text-xl font-bold">Cuenta sin acceso</h1>
             <p className="text-stone-600 text-sm">La cuenta <b>{user.email}</b> todavía no fue habilitada. Pedile al administrador que te dé de alta en Ajustes → Usuarios.</p>

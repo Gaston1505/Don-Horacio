@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Save, UserPlus, Download, Smartphone, Trash2 } from "lucide-react";
+import { Save, UserPlus, Download, Smartphone, Trash2, KeyRound, Copy } from "lucide-react";
 import { useCol, fijar, actualizar, borrar, crearCuentaUsuario, MODO_PRUEBA, escribir } from "../backend";
 import { useApp, Tarjeta, Boton, Encabezado, Campo, Input, Select, Modal, confirmar } from "../ui";
 import { CATEGORIAS, ROLES } from "../logica";
@@ -17,6 +17,7 @@ export default function Ajustes() {
         </Tarjeta>
       )}
       {puede("editar") && <Config config={config} />}
+      {puede("usuarios") && <Codigos />}
       {puede("usuarios") && <Usuarios yo={user.uid} />}
       <Instalar />
       {puede("editar") && <Respaldo />}
@@ -55,6 +56,36 @@ function Config({ config }) {
   );
 }
 
+// Código del campo: con él Eduardo y Martín entran poniendo solo su nombre. Cambiarlo no saca a
+// los que ya entraron (para eso, quitarles el acceso en Usuarios); solo impide nuevos ingresos.
+function Codigos() {
+  const codigos = useCol("codigos");
+  const [copiado, setCopiado] = useState(null);
+  const generar = () => {
+    const sin = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin letras/números que se confunden (O/0, I/1)
+    const c = Array.from(crypto.getRandomValues(new Uint32Array(6)), (n) => sin[n % sin.length]).join("");
+    fijar("codigos", c, { creadoEn: new Date().toISOString() });
+  };
+  const copiar = async (c) => {
+    try { await navigator.clipboard.writeText(c); setCopiado(c); setTimeout(() => setCopiado(null), 2000); } catch {}
+  };
+  return (
+    <Tarjeta className="p-4 space-y-3">
+      <h2 className="font-semibold flex items-center gap-2"><KeyRound size={18} /> Código del campo</h2>
+      <p className="text-sm text-stone-600">Pasáselo por WhatsApp a Eduardo y a Martín. Entran con su nombre y este código una sola vez; después el teléfono queda adentro. Pueden cargar movimientos, lluvias, novedades y hacienda, pero no cambiar potreros ni borrar.</p>
+      {codigos.map((c) => (
+        <div key={c.id} className="flex items-center gap-2">
+          <span className="font-mono text-2xl font-bold tracking-widest bg-campo-100 rounded-xl px-4 py-2">{c.id}</span>
+          <Boton chico variante="secundario" onClick={() => copiar(c.id)}><Copy size={16} /> {copiado === c.id ? "Copiado" : "Copiar"}</Boton>
+          <button className="p-2 text-stone-400 hover:text-red-600" title="Anular código" onClick={() => confirmar("¿Anular este código? Los que ya entraron siguen adentro.") && borrar("codigos", c.id)}><Trash2 size={16} /></button>
+        </div>
+      ))}
+      {!codigos.length && <Boton onClick={generar}><KeyRound size={16} /> Generar código</Boton>}
+      {codigos.length > 0 && <Boton chico variante="fantasma" onClick={() => { codigos.forEach((c) => borrar("codigos", c.id)); generar(); }}>Cambiar por uno nuevo</Boton>}
+    </Tarjeta>
+  );
+}
+
 function Usuarios({ yo }) {
   const usuarios = useCol("usuarios");
   const [alta, setAlta] = useState(false);
@@ -62,12 +93,12 @@ function Usuarios({ yo }) {
     <Tarjeta className="p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold">Usuarios</h2>
-        <Boton chico onClick={() => setAlta(true)}><UserPlus size={16} /> Agregar</Boton>
+        <Boton chico variante="secundario" onClick={() => setAlta(true)}><UserPlus size={16} /> Con email</Boton>
       </div>
       <div className="divide-y divide-stone-100">
         {usuarios.map((u) => (
           <div key={u.id} className="py-2 flex items-center justify-between gap-2">
-            <div className="min-w-0"><div className="font-medium">{u.nombre}</div><div className="text-sm text-stone-500 truncate">{u.email}</div></div>
+            <div className="min-w-0"><div className="font-medium">{u.nombre}</div><div className="text-sm text-stone-500 truncate">{u.email || "Entró con código"}</div></div>
             <div className="flex items-center gap-1">
               <select className="border rounded-lg px-2 py-1 text-sm" value={u.rol} disabled={u.id === yo} onChange={(e) => actualizar("usuarios", u.id, { rol: e.target.value })}>
                 {Object.entries(ROLES).map(([k, r]) => <option key={k} value={k}>{r.nombre}</option>)}

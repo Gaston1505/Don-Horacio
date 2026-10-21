@@ -10,6 +10,11 @@ rules_version = '2';
 //               no edita potreros ni borra nada
 // Una cuenta sin documento en usuarios no tiene acceso a nada.
 //
+// Ingreso con código (Eduardo, Martín): sesión anónima de Firebase + nombre + código del campo.
+// Solo se acepta crear el propio perfil con rol "capataz" si el código existe en /codigos, una
+// colección que solo el administrador puede leer (las funciones exists() de las reglas la ven
+// igual, sin exponerla).
+//
 // Primer ingreso: la primera cuenta que entra queda como admin. Se permite crear
 // usuarios/{uid} con rol admin solo mientras no exista config/instalacion, y en la misma
 // escritura se crea config/instalacion — después de eso nadie más puede auto-asignarse admin.
@@ -27,11 +32,20 @@ service cloud.firestore {
       allow get: if request.auth != null && (request.auth.uid == uid || esAdmin());
       allow list: if esAdmin();
       allow create: if esAdmin() || (
+        request.auth != null && request.auth.uid == uid &&
+        request.resource.data.rol == "capataz" &&
+        request.resource.data.codigo is string &&
+        exists(/databases/$(database)/documents/codigos/$(request.resource.data.codigo))
+      ) || (
         request.auth != null && request.auth.uid == uid && !instalado() &&
         request.resource.data.rol == "admin" &&
         getAfter(/databases/$(database)/documents/config/instalacion).data.adminUid == request.auth.uid
       );
       allow update, delete: if esAdmin() && uid != request.auth.uid;
+    }
+
+    match /codigos/{codigo} {
+      allow read, write: if esAdmin();
     }
 
     match /config/instalacion {

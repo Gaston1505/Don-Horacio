@@ -27,7 +27,10 @@ Se publica en: `https://gaston1505.github.io/Don-Horacio/`
   gráfico mensual y lluvia caída desde que un potrero se desocupó.
 - **Historial de cada potrero**: pastoreos, siembras, fertilizaciones, aplicaciones, aforos,
   alambrados… y estadísticas del último año (días ocupado, descanso promedio, EV·día/ha).
-- **Usuarios y roles**: Administrador (Gastón), Encargado (papá), Capataz.
+- **Ingreso simple**: Gastón (administrador) entra con email y contraseña; Eduardo y Martín
+  entran con su nombre y el **código del campo** (Ajustes → Código del campo), una sola vez.
+  Ellos cargan movimientos, lluvias, novedades y hacienda; la estructura (potreros, mapa, lotes)
+  y los borrados quedan para el administrador.
 
 ## Probarla ya (modo prueba)
 
@@ -45,7 +48,8 @@ npm run dev
 
 1. Entrar a https://console.firebase.google.com → **Agregar proyecto** → nombre `don-horacio`
    (sin Google Analytics).
-2. **Authentication** → Comenzar → habilitar **Correo electrónico/contraseña**.
+2. **Seguridad → Authentication** → Comenzar → habilitar **Correo electrónico/contraseña** y
+   también **Anónimo** (es el que usan Eduardo y Martín para entrar con código).
    En *Configuración → Dominios autorizados* agregar `gaston1505.github.io`.
 3. **Firestore Database** → Crear base de datos → modo producción → ubicación
    `southamerica-east1` (São Paulo).
@@ -55,7 +59,8 @@ npm run dev
 6. **Authentication → Usuarios → Agregar usuario**: crear tu cuenta (email + contraseña).
 7. Subir los cambios a `main` → se publica sola. Entrar con tu cuenta: la primera vez te
    pregunta tu nombre y quedás como **administrador**.
-8. En **Ajustes → Usuarios** dar de alta a papá (Encargado) y al capataz (Capataz).
+8. En **Ajustes → Código del campo** tocar *Generar código* y pasárselo por WhatsApp a Eduardo
+   y Martín. Ellos abren el link, ponen su nombre y el código, y listo.
 
 El plan gratuito de Firebase (Spark) alcanza de sobra para este uso.
 

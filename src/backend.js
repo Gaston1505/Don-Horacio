@@ -9,10 +9,10 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { initializeApp, deleteApp } from "firebase/app";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, onSnapshot, writeBatch, increment, deleteField,
+  collection, doc, onSnapshot, writeBatch, increment, deleteField, setDoc,
 } from "firebase/firestore";
 import {
-  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, signOut,
   createUserWithEmailAndPassword, sendPasswordResetEmail,
 } from "firebase/auth";
 import { firebaseConfig, firebaseConfigurado } from "./firebaseConfig";
@@ -212,6 +212,30 @@ export async function ingresar(email, password) {
   }
   await signInWithEmailAndPassword(auth, email.trim(), password);
 }
+// Ingreso simple para Eduardo y Martín: nombre + código del campo, sin email ni contraseña.
+// Se crea una sesión anónima en el dispositivo (queda abierta para siempre) y su perfil con rol
+// "capataz"; las reglas de Firestore solo lo aceptan si el código existe en la colección
+// "codigos" (que nadie más que el administrador puede leer).
+export async function entrarConCodigo(nombre, codigo) {
+  const cod = codigo.trim().toUpperCase();
+  if (MODO_PRUEBA) {
+    const u = { uid: "demo-" + nombre.trim().toLowerCase(), email: null };
+    localStorage.setItem(DEMO_KEY, JSON.stringify(u));
+    escribir([{ op: "set", col: "usuarios", id: u.uid, data: { nombre: nombre.trim(), rol: "capataz", codigo: cod } }]);
+    window.dispatchEvent(new Event("donhoracio-demo-auth"));
+    return;
+  }
+  const cred = await signInAnonymously(auth);
+  try {
+    await setDoc(doc(db, "usuarios", cred.user.uid), { nombre: nombre.trim(), rol: "capataz", codigo: cod, creadoEn: new Date().toISOString() });
+  } catch (e) {
+    await cred.user.delete().catch(() => signOut(auth));
+    const err = new Error("codigo");
+    err.code = "codigo-invalido";
+    throw err;
+  }
+}
+
 export async function salir() {
   if (MODO_PRUEBA) {
     localStorage.removeItem(DEMO_KEY);
