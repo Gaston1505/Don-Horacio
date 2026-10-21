@@ -227,14 +227,14 @@ export default function Mapa() {
 
       {/* Barra superior de herramientas */}
       {!modo && (
-        <div className="absolute top-3 left-3 right-3 z-[500] flex flex-wrap gap-2 pointer-events-none">
+        <div className="absolute top-3 left-3 right-3 z-[500] flex flex-wrap gap-2 pointer-events-none dh-arriba">
           <div className="flex flex-wrap gap-2 pointer-events-auto">
-            {puede("editar") && <BotonMapa icono={Plus} texto="Dibujar potrero" onClick={empezarDibujo} destacado />}
-            {puede("editar") && <BotonMapa icono={Footprints} texto="Recorrer con GPS" onClick={empezarGps} />}
+            {puede("editar") && <BotonMapa icono={Plus} texto="Dibujar" onClick={empezarDibujo} destacado />}
+            {puede("editar") && <BotonMapa icono={Footprints} texto="Con GPS" onClick={empezarGps} />}
             {puede("registrar") && <BotonMapa icono={MapPin} texto="Punto" onClick={() => { setSel(null); setModo("punto"); }} />}
             <BotonMapa icono={Layers} texto="Capas" onClick={() => setPanel(panel === "capas" ? null : "capas")} />
-            {puede("editar") && <BotonMapa icono={Upload} texto="Importar / exportar" onClick={() => setPanel("importar")} />}
-            <BotonMapa icono={CloudDownload} texto="Guardar offline" onClick={() => setPanel("offline")} />
+            {puede("editar") && <BotonMapa icono={Upload} texto="Importar" onClick={() => setPanel("importar")} />}
+            <BotonMapa icono={CloudDownload} texto="Offline" onClick={() => setPanel("offline")} />
           </div>
         </div>
       )}
@@ -246,13 +246,13 @@ export default function Mapa() {
       </div>
 
       {yo && !modo && (
-        <div className="absolute top-16 left-3 z-[500] bg-white/95 rounded-xl shadow px-3 py-2 text-sm">
+        <div className="absolute top-16 left-3 z-[500] dh-arriba bg-white/95 rounded-xl shadow px-3 py-2 text-sm">
           {dondeEstoy ? <>Estás en <b>{nombrePotrero(dondeEstoy)}</b></> : "Fuera de los potreros dibujados"} <span className="text-stone-500">· ±{Math.round(yo.acc)} m</span>
         </div>
       )}
 
       {panel === "capas" && (
-        <div className="absolute top-16 left-3 z-[600] bg-white rounded-2xl shadow-xl p-4 w-64 space-y-3 text-sm">
+        <div className="absolute top-16 left-3 z-[600] dh-arriba bg-white rounded-2xl shadow-xl p-4 w-64 space-y-3 text-sm">
           <div>
             <div className="font-semibold mb-1">Fondo</div>
             <label className="flex gap-2 items-center"><input type="radio" name="base" defaultChecked onChange={() => cambiarBase("sat")} /> Satelital</label>
@@ -332,14 +332,14 @@ const perimetroAbierto = (pts) => pts.slice(1).reduce((s, p, i) => s + distancia
 
 function BotonMapa({ icono: I, texto, onClick, destacado }) {
   return (
-    <button onClick={onClick} className={`flex items-center gap-1.5 rounded-full px-3 py-2 shadow-lg text-sm font-medium ${destacado ? "bg-campo-700 text-white" : "bg-white text-stone-800"}`}>
+    <button onClick={onClick} title={texto} className={`flex items-center gap-1.5 rounded-full px-3 py-2 shadow-lg text-sm font-medium ${destacado ? "bg-campo-700 text-white" : "bg-white text-stone-800"}`}>
       <I size={18} /> <span className="hidden sm:inline">{texto}</span>
     </button>
   );
 }
 function BarraModo({ texto, children }) {
   return (
-    <div className="absolute top-3 left-3 right-3 z-[600] bg-stone-900/95 text-white rounded-2xl p-3 shadow-xl flex flex-wrap items-center gap-2 justify-between">
+    <div className="absolute top-3 left-3 right-3 z-[600] dh-arriba bg-stone-900/95 text-white rounded-2xl p-3 shadow-xl flex flex-wrap items-center gap-2 justify-between">
       <span className="text-sm flex-1 min-w-[200px]">{texto}</span>
       <div className="flex flex-wrap gap-2">{children}</div>
     </div>

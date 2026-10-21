@@ -24,4 +24,9 @@ body { background: #F4F1EA; color: #1c1917; -webkit-tap-highlight-color: transpa
 }
 
 .dh-mapa { height: calc(100dvh - 52px - 64px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
-@media (min-width: 1024px) { .dh-mapa { height: 100dvh; } }
+@media (min-width: 1024px) {
+  /* En la computadora/iPad horizontal no hay barra superior propia: los controles de arriba del
+     mapa se corren por debajo de la barra de estado del sistema, si la hay. */
+  .dh-mapa { height: 100dvh; }
+  .dh-arriba { margin-top: env(safe-area-inset-top); }
+}

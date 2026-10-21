@@ -185,7 +185,7 @@ function Shell({ user, perfil, config }) {
     <Ctx.Provider value={ctx}>
       <div className="min-h-full lg:pl-60">
         {/* Barra lateral (computadora / iPad horizontal) */}
-        <aside className="hidden lg:flex fixed inset-y-0 left-0 w-60 flex-col bg-campo-900 text-campo-50 no-print">
+        <aside className="hidden lg:flex fixed inset-y-0 left-0 w-60 flex-col bg-campo-900 text-campo-50 no-print safe-top">
           <div className="p-5 flex items-center gap-3">
             <img src="icon.svg" alt="" className="w-10 h-10 rounded-xl" />
             <div>
