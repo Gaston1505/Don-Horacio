@@ -1,0 +1,73 @@
+rules_version = '2';
+
+// Don Horacio — reglas de Firestore (proyecto Firebase propio, separado de AEON).
+// Publicar en: Firebase Console → Firestore Database → Reglas.
+//
+// Roles en usuarios/{uid}.rol:
+//   admin     → todo, incluido dar de alta usuarios
+//   encargado → todo menos usuarios
+//   capataz   → registra (mover lotes, lluvias, novedades, movimientos de hacienda, puntos);
+//               no edita potreros ni borra nada
+// Una cuenta sin documento en usuarios no tiene acceso a nada.
+//
+// Primer ingreso: la primera cuenta que entra queda como admin. Se permite crear
+// usuarios/{uid} con rol admin solo mientras no exista config/instalacion, y en la misma
+// escritura se crea config/instalacion — después de eso nadie más puede auto-asignarse admin.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function perfil() { return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)); }
+    function tienePerfil() { return request.auth != null && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)); }
+    function rol() { return perfil().data.rol; }
+    function esAdmin() { return tienePerfil() && rol() == "admin"; }
+    function puedeEditar() { return tienePerfil() && rol() in ["admin", "encargado"]; }
+    function puedeRegistrar() { return tienePerfil() && rol() in ["admin", "encargado", "capataz"]; }
+    function instalado() { return exists(/databases/$(database)/documents/config/instalacion); }
+
+    match /usuarios/{uid} {
+      allow get: if request.auth != null && (request.auth.uid == uid || esAdmin());
+      allow list: if esAdmin();
+      allow create: if esAdmin() || (
+        request.auth != null && request.auth.uid == uid && !instalado() &&
+        request.resource.data.rol == "admin" &&
+        getAfter(/databases/$(database)/documents/config/instalacion).data.adminUid == request.auth.uid
+      );
+      allow update, delete: if esAdmin() && uid != request.auth.uid;
+    }
+
+    match /config/instalacion {
+      allow get: if request.auth != null;
+      allow create: if request.auth != null && !instalado() &&
+        request.resource.data.adminUid == request.auth.uid &&
+        existsAfter(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+    match /config/{docId} {
+      allow read: if puedeRegistrar();
+      allow write: if puedeEditar() || (docId == "general" && !instalado() && request.auth != null);
+    }
+
+    // Potreros: el capataz solo puede anotar el estado de los alambrados (ladosNotas).
+    match /potreros/{id} {
+      allow read: if puedeRegistrar();
+      allow create, delete: if puedeEditar();
+      allow update: if puedeEditar() || (puedeRegistrar() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["ladosNotas", "actualizadoPor", "actualizadoEn"]));
+    }
+
+    // Lotes y ocupaciones: el capataz los mueve (crea/cierra ocupaciones y actualiza el lote).
+    match /lotes/{id} {
+      allow read: if puedeRegistrar();
+      allow create, delete: if puedeEditar();
+      allow update: if puedeRegistrar();
+    }
+    match /ocupaciones/{id} {
+      allow read, create, update: if puedeRegistrar();
+      allow delete: if puedeEditar();
+    }
+
+    // Registros del día a día: el capataz los crea, solo admin/encargado corrigen o borran.
+    match /lluvias/{id} { allow read, create: if puedeRegistrar(); allow update, delete: if puedeEditar(); }
+    match /eventos/{id} { allow read, create: if puedeRegistrar(); allow update, delete: if puedeEditar(); }
+    match /movHacienda/{id} { allow read, create: if puedeRegistrar(); allow update, delete: if puedeEditar(); }
+    match /puntos/{id} { allow read, create: if puedeRegistrar(); allow update, delete: if puedeEditar(); }
+  }
+}

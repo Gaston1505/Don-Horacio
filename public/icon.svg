@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#3F5B2E"/>
+  <path d="M0 360 C120 300 220 330 300 300 C380 270 440 290 512 270 L512 512 L0 512Z" fill="#5B7F44"/>
+  <path d="M0 420 C140 380 260 400 512 360 L512 512 L0 512Z" fill="#7FA35E"/>
+  <circle cx="370" cy="150" r="54" fill="#E9C46A"/>
+  <text x="256" y="250" text-anchor="middle" font-family="Georgia,serif" font-size="150" font-weight="700" fill="#F4F1EA">DH</text>
+</svg>
