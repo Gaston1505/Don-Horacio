@@ -3,7 +3,7 @@
 App web instalable (PWA) para celular, iPad y computadora. Funciona **sin señal**: lo que se
 carga en el campo queda guardado en el dispositivo y se sube solo cuando vuelve la conexión.
 
-Se publica en: `https://gaston1505.github.io/don-horacio/`
+Se publica en: `https://gaston1505.github.io/Don-Horacio/`
 
 ## Qué hace
 

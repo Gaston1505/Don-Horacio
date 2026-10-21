@@ -2,8 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-// Se publica en GitHub Pages: https://gaston1505.github.io/don-horacio/
-const BASE = "/don-horacio/";
+// Se publica en GitHub Pages (https://gaston1505.github.io/Don-Horacio/). Rutas relativas para que
+// funcione igual aunque cambie el nombre o las mayúsculas del repositorio.
+const BASE = "./";
 
 export default defineConfig({
   base: BASE,
