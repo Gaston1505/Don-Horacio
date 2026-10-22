@@ -196,3 +196,49 @@ export function puede(rol, accion) {
   if (rol === "capataz") return accion === "registrar";
   return false;
 }
+
+// ---------- Agua ----------
+export const FUENTES_AGUA = [
+  { id: "arroyo", nombre: "Arroyo" },
+  { id: "canada", nombre: "Cañada" },
+  { id: "tajamar", nombre: "Tajamar" },
+  { id: "bebedero", nombre: "Bebedero" },
+  { id: "pozo", nombre: "Pozo / molino" },
+  { id: "laguna", nombre: "Laguna / bañado" },
+  { id: "rio", nombre: "Río" },
+];
+export const nombreFuente = (id) => FUENTES_AGUA.find((f) => f.id === id)?.nombre || id;
+// Cómo responde el agua del potrero en una seca de verano.
+export const AGUA_SECA = {
+  buena: { nombre: "Buena", desc: "No falla en seca", color: "#15803D" },
+  regular: { nombre: "Regular", desc: "Baja el caudal, hay que vigilar", color: "#B45309" },
+  mala: { nombre: "Mala", desc: "Se seca o no alcanza", color: "#B91C1C" },
+};
+export const MESES_SECA_DEFECTO = [12, 1, 2, 3];
+export const UMBRAL_SECA_DEFECTO = 30; // mm en los últimos 30 días
+
+// Época de seca: los meses marcados en Ajustes (por defecto dic–mar) o, en cualquier mes, si en
+// los últimos 30 días llovió menos que el umbral.
+export function epocaDeSeca(config, lluvias, fecha = hoy()) {
+  const meses = config?.mesesSeca || MESES_SECA_DEFECTO;
+  if (meses.includes(Number(fecha.slice(5, 7)))) return { seca: true, motivo: "estamos en los meses de seca" };
+  const umbral = Number(config?.umbralSeca ?? UMBRAL_SECA_DEFECTO);
+  if (lluvias?.length && umbral > 0) {
+    const desde = sumarDias(fecha, -30);
+    const mm = lluvias.filter((l) => l.fecha > desde && l.fecha <= fecha).reduce((s, l) => s + (Number(l.mm) || 0), 0);
+    if (mm < umbral) return { seca: true, motivo: `en los últimos 30 días llovieron ${fmtNum(mm)} mm` };
+  }
+  return { seca: false };
+}
+
+// Alerta de agua para entrar a un potrero en época de seca. Sin datos de agua también avisa,
+// para que se complete la ficha.
+export function alertaAgua(potrero, config, lluvias, fecha = hoy()) {
+  const ep = epocaDeSeca(config, lluvias, fecha);
+  if (!ep.seca || !potrero) return null;
+  const q = potrero.aguaSeca;
+  if (q === "buena") return null;
+  if (q === "mala") return { nivel: "mala", motivo: ep.motivo };
+  if (q === "regular") return { nivel: "regular", motivo: ep.motivo };
+  return { nivel: "sin_dato", motivo: ep.motivo };
+}

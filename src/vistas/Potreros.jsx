@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from "react";
 import { Plus, Pencil, Printer, Download, ArrowLeft, Map as MapIcon, ClipboardPlus, ArrowRightLeft, LayoutGrid, Search } from "lucide-react";
 import { useCol, actualizar, agregar, borrar } from "../backend";
 import { useApp, Tarjeta, Boton, BadgeEstado, Encabezado, Dato, Vacio, Modal, Input, Area, confirmar } from "../ui";
-import { estadoPotrero, estadisticasPotrero, haPotrero, fmtNum, fmtFecha, nombreUso, USOS, POTENCIAL, nombreEvento, hoy, sumarDias, diasEntre } from "../logica";
+import { estadoPotrero, estadisticasPotrero, haPotrero, fmtNum, fmtFecha, nombreUso, USOS, POTENCIAL, nombreEvento, hoy, sumarDias, diasEntre, nombreFuente, AGUA_SECA, alertaAgua } from "../logica";
 import { lados, perimetro, fmtMetros, superficieHa } from "../geo";
 import { Croquis, descargarSvg, imprimirCroquis } from "../Croquis";
 import { MoverLote, NuevoEvento, EditarOcupacion, potrerosOrdenados, nombrePotrero } from "../acciones";
@@ -158,13 +158,15 @@ function Ficha({ id }) {
               <Fila k="Perímetro" v={p.geometria ? fmtMetros(perimetro(p.geometria)) : "Sin dibujar"} />
               {p.especies && <Fila k="Especies" v={p.especies} />}
               {p.fechaImplantacion && <Fila k="Implantación" v={`${fmtFecha(p.fechaImplantacion)} (${fmtNum(diasEntre(p.fechaImplantacion) / 365, 1)} años)`} />}
-              <Fila k="Aguada" v={p.aguada || "—"} />
+              <Fila k="Aguada" v={(p.fuentesAgua || []).map(nombreFuente).join(", ") || p.aguada || "Sin cargar"} />
+              <Fila k="Agua en seca" v={p.aguaSeca ? <span style={{ color: AGUA_SECA[p.aguaSeca].color }} className="font-semibold">{AGUA_SECA[p.aguaSeca].nombre}</span> : "Sin calificar"} />
               <Fila k="Descanso objetivo" v={`${e.objetivo} días`} />
               <Fila k="En rotación" v={p.enRotacion === false ? "No" : "Sí"} />
               <Fila k="Potencial" v={p.potencial ? <Potencial n={p.potencial} /> : "Sin calificar"} />
             </dl>
             {p.notas && <p className="text-sm text-stone-600 mt-3 whitespace-pre-wrap">{p.notas}</p>}
           </Tarjeta>
+          <AguaPotrero p={p} />
           <Comentarios potreroId={p.id} />
         </div>
       )}
@@ -196,16 +198,46 @@ export function Potencial({ n }) {
 }
 
 // Comentarios con fecha: el historial de lo que se fue observando en el potrero.
+export const TEMAS_COMENTARIO = { general: "General", agua: "💧 Agua", pasto: "🌱 Pasto", alambrado: "Alambrado", malezas: "Malezas" };
+
+// Bloque de agua de la ficha: fuentes, cómo aguanta en seca, el detalle y los últimos comentarios
+// con tema Agua.
+function AguaPotrero({ p }) {
+  const { config } = useApp();
+  const lluvias = useCol("lluvias");
+  const comentarios = useCol("comentarios");
+  const deAgua = comentarios.filter((c) => c.potreroId === p.id && c.tema === "agua").sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 3);
+  const al = alertaAgua(p, config, lluvias);
+  const q = AGUA_SECA[p.aguaSeca];
+  return (
+    <Tarjeta className="p-4 lg:col-span-3 border-sky-200">
+      <h2 className="font-semibold mb-2">💧 Agua</h2>
+      <div className="text-sm space-y-1">
+        <div>{(p.fuentesAgua || []).length ? (p.fuentesAgua || []).map(nombreFuente).join(" · ") : <span className="text-stone-500">Sin fuentes cargadas (Editar → Agua)</span>}</div>
+        <div>En seca: {q ? <b style={{ color: q.color }}>{q.nombre} — {q.desc.toLowerCase()}</b> : <span className="text-stone-500">sin calificar</span>}</div>
+        {p.aguada && <div className="text-stone-600">{p.aguada}</div>}
+        {al && al.nivel !== "sin_dato" && <div className="text-amber-800 bg-amber-50 rounded-lg px-3 py-2">Época de seca ({al.motivo}): chequear el agua antes de meter un lote.</div>}
+      </div>
+      {deAgua.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {deAgua.map((c) => <div key={c.id} className="text-sm"><b>{fmtFecha(c.fecha)}</b>{c.autor ? <span className="text-stone-500"> · {c.autor}</span> : null}: {c.texto}</div>)}
+        </div>
+      )}
+    </Tarjeta>
+  );
+}
+
 function Comentarios({ potreroId }) {
   const { perfil, puede } = useApp();
   const todos = useCol("comentarios");
   const [texto, setTexto] = useState("");
   const [fecha, setFecha] = useState(hoy());
+  const [tema, setTema] = useState("general");
   const lista = todos.filter((c) => c.potreroId === potreroId).sort((a, b) => (b.fecha + (b.creadoEn || "")).localeCompare(a.fecha + (a.creadoEn || "")));
   const guardar = () => {
     if (!texto.trim()) return;
-    agregar("comentarios", { potreroId, fecha, texto: texto.trim(), autor: perfil.nombre });
-    setTexto(""); setFecha(hoy());
+    agregar("comentarios", { potreroId, fecha, texto: texto.trim(), autor: perfil.nombre, tema });
+    setTexto(""); setFecha(hoy()); setTema("general");
   };
   return (
     <Tarjeta className="p-4 lg:col-span-3">
@@ -213,8 +245,11 @@ function Comentarios({ potreroId }) {
       {puede("registrar") && (
         <div className="space-y-2 mb-3">
           <Area value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="¿Qué viste en el potrero? (pasto, malezas, agua, alambrado…)" />
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
             <input type="date" className="rounded-xl border border-stone-300 px-3 py-2" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} />
+            <select className="rounded-xl border border-stone-300 px-3 py-2 bg-white" value={tema} onChange={(e) => setTema(e.target.value)}>
+              {Object.entries(TEMAS_COMENTARIO).map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+            </select>
             <Boton onClick={guardar} disabled={!texto.trim()}>Agregar comentario</Boton>
           </div>
         </div>
@@ -224,7 +259,7 @@ function Comentarios({ potreroId }) {
         {lista.map((c) => (
           <div key={c.id} className="py-2 flex gap-3 justify-between">
             <div className="min-w-0">
-              <div className="text-xs text-stone-500"><b className="text-stone-700">{fmtFecha(c.fecha)}</b>{c.autor ? ` · ${c.autor}` : ""}</div>
+              <div className="text-xs text-stone-500"><b className="text-stone-700">{fmtFecha(c.fecha)}</b>{c.autor ? ` · ${c.autor}` : ""}{c.tema && c.tema !== "general" ? ` · ${TEMAS_COMENTARIO[c.tema] || c.tema}` : ""}</div>
               <div className="text-sm whitespace-pre-wrap">{c.texto}</div>
             </div>
             {puede("borrar") && <button className="text-xs text-stone-400 hover:text-red-600 shrink-0" onClick={() => confirmar("¿Borrar este comentario?") && borrar("comentarios", c.id)}>Borrar</button>}

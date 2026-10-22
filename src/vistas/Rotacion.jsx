@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRightLeft, Info } from "lucide-react";
 import { useCol } from "../backend";
 import { useApp, Tarjeta, Boton, BadgeEstado, Encabezado, Vacio } from "../ui";
-import { estadoPotrero, ESTADOS, haPotrero, fmtNum, fmtFecha, hoy, sumarDias, diasEntre, evLote, cabezasLote } from "../logica";
+import { estadoPotrero, ESTADOS, haPotrero, fmtNum, fmtFecha, hoy, sumarDias, diasEntre, evLote, cabezasLote, alertaAgua, AGUA_SECA } from "../logica";
 import { MoverLote, EditarOcupacion, potrerosOrdenados, nombrePotrero } from "../acciones";
 
 const PALETA = ["#2563EB", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D", "#DC2626", "#4F46E5", "#0D9488", "#A16207"];
@@ -16,6 +16,7 @@ export default function Rotacion() {
   const potreros = useCol("potreros");
   const lotes = useCol("lotes");
   const ocupaciones = useCol("ocupaciones");
+  const lluvias = useCol("lluvias");
   const [modal, setModal] = useState(null);
   const [vista, setVista] = useState("tablero");
   const [filtro, setFiltro] = useState("todos");
@@ -54,7 +55,7 @@ export default function Rotacion() {
             })}
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {visibles.map(({ p, e }) => <TarjetaPotrero key={p.id} p={p} e={e} lotes={lotes} config={config} onMover={(loteId) => setModal({ t: "mover", loteId, potreroId: loteId ? undefined : p.id })} onVer={() => ir("potreros", p.id)} />)}
+            {visibles.map(({ p, e }) => <TarjetaPotrero key={p.id} p={p} e={e} lotes={lotes} config={config} alAgua={alertaAgua(p, config, lluvias)} onMover={(loteId) => setModal({ t: "mover", loteId, potreroId: loteId ? undefined : p.id })} onVer={() => ir("potreros", p.id)} />)}
           </div>
         </>
       )}
@@ -67,7 +68,7 @@ export default function Rotacion() {
   );
 }
 
-function TarjetaPotrero({ p, e, lotes, config, onMover, onVer }) {
+function TarjetaPotrero({ p, e, lotes, config, alAgua, onMover, onVer }) {
   const est = ESTADOS[e.estado];
   const ha = haPotrero(p);
   const pct = e.diasDescanso != null ? Math.min(100, (e.diasDescanso / e.objetivo) * 100) : e.estado === "ocupado" ? Math.min(100, (e.diasOcupado / e.ocupMax) * 100) : 0;
@@ -101,6 +102,9 @@ function TarjetaPotrero({ p, e, lotes, config, onMover, onVer }) {
         </div>
       )}
       {e.estado === "sin_datos" && <div className="mt-2 text-sm text-stone-500">Sin pastoreos registrados.</div>}
+      {alAgua && ["mala", "regular"].includes(alAgua.nivel) && e.estado !== "fuera" && (
+        <div className="mt-2 text-xs font-semibold" style={{ color: AGUA_SECA[alAgua.nivel].color }}>💧 Agua {AGUA_SECA[alAgua.nivel].nombre.toLowerCase()} en seca: chequear antes de entrar</div>
+      )}
       {e.estado !== "fuera" && (
         <div className="h-1.5 bg-stone-100 rounded-full mt-3 overflow-hidden"><div className="h-full rounded-full" style={{ width: pct + "%", background: est.color }} /></div>
       )}

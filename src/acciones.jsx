@@ -5,7 +5,7 @@ import { useCol, escribir, nuevoId, agregar, actualizar, borrar, inc } from "./b
 import { Modal, Boton, Campo, Input, Select, Area, useApp, BadgeEstado, confirmar } from "./ui";
 import {
   hoy, estadoPotrero, ESTADOS, cabezasLote, evLote, fmtFecha, TIPOS_EVENTO, TIPOS_MOV_HACIENDA,
-  CATEGORIAS, nombreCategoria, haPotrero, fmtNum, tipoMov,
+  CATEGORIAS, nombreCategoria, haPotrero, fmtNum, tipoMov, alertaAgua, AGUA_SECA, nombreFuente,
 } from "./logica";
 
 const ORDEN_ESTADO = { listo: 0, sin_datos: 1, recuperando: 2, reciente: 3, ocupado: 4, fuera: 5 };
@@ -22,6 +22,9 @@ export function MoverLote({ loteId: loteInicial, potreroId: destinoInicial, onCe
   const lotes = useCol("lotes");
   const potreros = useCol("potreros");
   const ocupaciones = useCol("ocupaciones");
+  const lluvias = useCol("lluvias");
+  const comentarios = useCol("comentarios");
+  const [aguaChequeada, setAguaChequeada] = useState(false);
   const [loteId, setLoteId] = useState(loteInicial || "");
   const [destino, setDestino] = useState(destinoInicial || "");
   const [fecha, setFecha] = useState(hoy());
@@ -34,6 +37,10 @@ export function MoverLote({ loteId: loteInicial, potreroId: destinoInicial, onCe
   const opciones = useMemo(() => potrerosOrdenados(potreros, ocupaciones, config), [potreros, ocupaciones, config]);
   const eDest = opciones.find((x) => x.p.id === destino);
   const error = abierta && fecha < abierta.entrada ? `La fecha no puede ser anterior a la entrada (${fmtFecha(abierta.entrada)}).` : null;
+  // En época de seca, avisar si el potrero de destino puede tener poca agua.
+  const alAgua = eDest ? alertaAgua(eDest.p, config, lluvias, fecha) : null;
+  const ultimoAgua = eDest ? comentarios.filter((c) => c.potreroId === eDest.p.id && c.tema === "agua").sort((a, b) => b.fecha.localeCompare(a.fecha))[0] : null;
+  const faltaChequeo = alAgua?.nivel === "mala" && !aguaChequeada;
 
   const guardar = () => {
     const ops = [];
@@ -55,7 +62,7 @@ export function MoverLote({ loteId: loteInicial, potreroId: destinoInicial, onCe
   const activos = lotes.filter((l) => l.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre));
   return (
     <Modal titulo={abierta ? "Mover lote" : "Ingresar lote a un potrero"} onCerrar={onCerrar}
-      pie={<><Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton><Boton onClick={guardar} disabled={!loteId || !!error || (!destino && !abierta) || destino === abierta?.potreroId}>Guardar</Boton></>}>
+      pie={<><Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton><Boton onClick={guardar} disabled={!loteId || !!error || (!destino && !abierta) || destino === abierta?.potreroId || faltaChequeo}>Guardar</Boton></>}>
       <Campo label="Lote">
         <Select value={loteId} onChange={(e) => setLoteId(e.target.value)}>
           <option value="">Elegir…</option>
@@ -68,11 +75,11 @@ export function MoverLote({ loteId: loteInicial, potreroId: destinoInicial, onCe
         </p>
       )}
       <Campo label="Pasa al potrero">
-        <Select value={destino} onChange={(e) => setDestino(e.target.value)}>
+        <Select value={destino} onChange={(e) => { setDestino(e.target.value); setAguaChequeada(false); }}>
           <option value="">{abierta ? "— Sacarlo (corral, venta, fuera del campo) —" : "Elegir…"}</option>
           {opciones.filter(({ p }) => p.id !== abierta?.potreroId).map(({ p, e }) => (
             <option key={p.id} value={p.id}>
-              {nombrePotrero(p)} — {ESTADOS[e.estado].nombre}{e.diasDescanso != null && e.estado !== "ocupado" ? ` (${e.diasDescanso} d de descanso)` : ""}{e.estado === "ocupado" ? " (con otro lote)" : ""}
+              {["mala", "regular"].includes(alertaAgua(p, config, lluvias, fecha)?.nivel) ? "💧⚠ " : ""}{nombrePotrero(p)} — {ESTADOS[e.estado].nombre}{e.diasDescanso != null && e.estado !== "ocupado" ? ` (${e.diasDescanso} d de descanso)` : ""}{e.estado === "ocupado" ? " (con otro lote)" : ""}
             </option>
           ))}
         </Select>
@@ -82,6 +89,18 @@ export function MoverLote({ loteId: loteInicial, potreroId: destinoInicial, onCe
           <BadgeEstado estado={eDest.e.estado} />
           <span className="text-stone-600">{fmtNum(haPotrero(eDest.p), 1)} ha{lote && haPotrero(eDest.p) ? ` · carga ${fmtNum(evLote(lote, config) / haPotrero(eDest.p), 2)} EV/ha` : ""}</span>
           {eDest.e.estado === "reciente" && <span className="text-red-700">Ojo: descansó solo {eDest.e.diasDescanso} de {eDest.e.objetivo} días.</span>}
+        </div>
+      )}
+      {alAgua && (
+        <div className={`rounded-xl p-3 text-sm space-y-1 border ${alAgua.nivel === "mala" ? "bg-red-50 border-red-300 text-red-900" : "bg-amber-50 border-amber-300 text-amber-900"}`}>
+          <div className="font-semibold">💧 {alAgua.nivel === "mala" ? "Ojo: este potrero puede quedarse sin agua" : alAgua.nivel === "regular" ? "Este potrero puede tener poca agua" : "No hay datos del agua de este potrero"}</div>
+          <div>Época de seca: {alAgua.motivo}. {alAgua.nivel === "sin_dato" ? "Cargá su aguada en la ficha del potrero." : "Chequeá el agua antes de meter el lote."}</div>
+          {(eDest.p.fuentesAgua || []).length > 0 && <div>Aguada: {(eDest.p.fuentesAgua || []).map(nombreFuente).join(", ")}{eDest.p.aguaSeca ? ` · en seca: ${AGUA_SECA[eDest.p.aguaSeca].nombre.toLowerCase()}` : ""}</div>}
+          {eDest.p.aguada && <div>{eDest.p.aguada}</div>}
+          {ultimoAgua && <div>Último comentario ({fmtFecha(ultimoAgua.fecha)}{ultimoAgua.autor ? `, ${ultimoAgua.autor}` : ""}): {ultimoAgua.texto}</div>}
+          {alAgua.nivel === "mala" && (
+            <label className="flex items-center gap-2 font-medium pt-1"><input type="checkbox" className="w-5 h-5" checked={aguaChequeada} onChange={(e) => setAguaChequeada(e.target.checked)} /> Ya chequeé el agua, entrar igual</label>
+          )}
         </div>
       )}
       <Campo label="Fecha"><Input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} /></Campo>
@@ -146,7 +165,19 @@ export function NuevaLluvia({ lluvia, onCerrar }) {
         <Boton onClick={guardar} disabled={mm === "" || Number(mm) < 0 || (lluvia && !puede("editar"))}>Guardar</Boton>
       </>}>
       <div className="grid grid-cols-2 gap-3">
-        <Campo label="Fecha"><Input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} /></Campo>
+        {alAgua && (
+        <div className={`rounded-xl p-3 text-sm space-y-1 border ${alAgua.nivel === "mala" ? "bg-red-50 border-red-300 text-red-900" : "bg-amber-50 border-amber-300 text-amber-900"}`}>
+          <div className="font-semibold">💧 {alAgua.nivel === "mala" ? "Ojo: este potrero puede quedarse sin agua" : alAgua.nivel === "regular" ? "Este potrero puede tener poca agua" : "No hay datos del agua de este potrero"}</div>
+          <div>Época de seca: {alAgua.motivo}. {alAgua.nivel === "sin_dato" ? "Cargá su aguada en la ficha del potrero." : "Chequeá el agua antes de meter el lote."}</div>
+          {(eDest.p.fuentesAgua || []).length > 0 && <div>Aguada: {(eDest.p.fuentesAgua || []).map(nombreFuente).join(", ")}{eDest.p.aguaSeca ? ` · en seca: ${AGUA_SECA[eDest.p.aguaSeca].nombre.toLowerCase()}` : ""}</div>}
+          {eDest.p.aguada && <div>{eDest.p.aguada}</div>}
+          {ultimoAgua && <div>Último comentario ({fmtFecha(ultimoAgua.fecha)}{ultimoAgua.autor ? `, ${ultimoAgua.autor}` : ""}): {ultimoAgua.texto}</div>}
+          {alAgua.nivel === "mala" && (
+            <label className="flex items-center gap-2 font-medium pt-1"><input type="checkbox" className="w-5 h-5" checked={aguaChequeada} onChange={(e) => setAguaChequeada(e.target.checked)} /> Ya chequeé el agua, entrar igual</label>
+          )}
+        </div>
+      )}
+      <Campo label="Fecha"><Input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} /></Campo>
         <Campo label="Milímetros"><Input type="number" inputMode="decimal" step="0.5" value={mm} onChange={(e) => setMm(e.target.value)} autoFocus /></Campo>
       </div>
       {pluvios.length > 0 && (

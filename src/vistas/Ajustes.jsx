@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Save, UserPlus, Download, Smartphone, Trash2, KeyRound, Copy } from "lucide-react";
 import { useCol, fijar, actualizar, borrar, crearCuentaUsuario, MODO_PRUEBA, escribir } from "../backend";
 import { useApp, Tarjeta, Boton, Encabezado, Campo, Input, Select, Modal, confirmar } from "../ui";
-import { CATEGORIAS, ROLES } from "../logica";
+import { CATEGORIAS, ROLES, MESES_SECA_DEFECTO, UMBRAL_SECA_DEFECTO, MESES_LARGOS } from "../logica";
 
 const COLECCIONES = ["potreros", "lotes", "ocupaciones", "lluvias", "eventos", "movHacienda", "puntos"];
 
@@ -26,11 +26,11 @@ export default function Ajustes() {
 }
 
 function Config({ config }) {
-  const [d, setD] = useState({ nombreCampo: config.nombreCampo || "Don Horacio", descansoObjetivo: config.descansoObjetivo || 45, ocupacionMaxima: config.ocupacionMaxima || 7, ev: { ...(config.ev || {}) } });
+  const [d, setD] = useState({ nombreCampo: config.nombreCampo || "Don Horacio", descansoObjetivo: config.descansoObjetivo || 45, ocupacionMaxima: config.ocupacionMaxima || 7, ev: { ...(config.ev || {}) }, mesesSeca: config.mesesSeca || MESES_SECA_DEFECTO, umbralSeca: config.umbralSeca ?? UMBRAL_SECA_DEFECTO });
   const [ok, setOk] = useState(false);
   const guardar = () => {
     const { id, ...resto } = config; // eslint-disable-line no-unused-vars
-    fijar("config", "general", { ...resto, ...d, descansoObjetivo: Number(d.descansoObjetivo), ocupacionMaxima: Number(d.ocupacionMaxima), ev: Object.fromEntries(Object.entries(d.ev).filter(([, v]) => v !== "").map(([k, v]) => [k, Number(v)])) });
+    fijar("config", "general", { ...resto, ...d, descansoObjetivo: Number(d.descansoObjetivo), ocupacionMaxima: Number(d.ocupacionMaxima), umbralSeca: Number(d.umbralSeca) || 0, ev: Object.fromEntries(Object.entries(d.ev).filter(([, v]) => v !== "").map(([k, v]) => [k, Number(v)])) });
     setOk(true); setTimeout(() => setOk(false), 2000);
   };
   return (
@@ -50,6 +50,17 @@ function Config({ config }) {
             </label>
           ))}
         </div>
+      </div>
+      <div>
+        <div className="text-sm font-medium text-stone-700 mb-1">💧 Época de seca</div>
+        <p className="text-xs text-stone-500 mb-2">En estos meses, al mover un lote a un potrero con agua regular o mala, la app avisa antes de guardar.</p>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {MESES_LARGOS.map((m, i) => {
+            const n = i + 1, on = d.mesesSeca.includes(n);
+            return <button key={m} type="button" onClick={() => setD({ ...d, mesesSeca: on ? d.mesesSeca.filter((x) => x !== n) : [...d.mesesSeca, n].sort((a, b) => a - b) })} className={`text-sm rounded-full px-3 py-1 border ${on ? "bg-sky-700 text-white border-sky-700" : "bg-white border-stone-300"}`}>{m.slice(0, 3)}</button>;
+          })}
+        </div>
+        <Campo label="Fuera de esos meses, avisar también si en los últimos 30 días llovió menos de (mm)" ayuda="0 = no usar"><Input type="number" value={d.umbralSeca} onChange={(e) => setD({ ...d, umbralSeca: e.target.value })} /></Campo>
       </div>
       <Boton onClick={guardar}><Save size={18} /> {ok ? "Guardado" : "Guardar"}</Boton>
     </Tarjeta>

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { agregar, actualizar, borrar, useCol } from "./backend";
 import { Modal, Boton, Campo, Input, Select, Area, useApp, confirmar } from "./ui";
-import { USOS, POTENCIAL } from "./logica";
+import { USOS, POTENCIAL, FUENTES_AGUA, AGUA_SECA } from "./logica";
 import { superficieHa, perimetro, fmtMetros } from "./geo";
 
 export default function FormPotrero({ potrero, geometria, onCerrar, onGuardado }) {
@@ -15,7 +15,9 @@ export default function FormPotrero({ potrero, geometria, onCerrar, onGuardado }
     descansoObjetivo: potrero?.descansoObjetivo || "", ocupacionMaxima: potrero?.ocupacionMaxima || "",
     enRotacion: potrero?.enRotacion !== false, aguada: potrero?.aguada || "", notas: potrero?.notas || "",
     potencial: potrero?.potencial || null,
+    fuentesAgua: potrero?.fuentesAgua || [], aguaSeca: potrero?.aguaSeca || "",
   });
+  const toggleFuente = (f) => setD({ ...d, fuentesAgua: d.fuentesAgua.includes(f) ? d.fuentesAgua.filter((x) => x !== f) : [...d.fuentesAgua, f] });
   const set = (k) => (e) => setD({ ...d, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
   const guardar = () => {
     const data = { ...d, hectareas: d.hectareas === "" ? null : Number(d.hectareas), descansoObjetivo: d.descansoObjetivo === "" ? null : Number(d.descansoObjetivo), ocupacionMaxima: d.ocupacionMaxima === "" ? null : Number(d.ocupacionMaxima) };
@@ -72,7 +74,27 @@ export default function FormPotrero({ potrero, geometria, onCerrar, onGuardado }
         </div>
         <span className="block text-xs text-stone-500 mt-1">Pensado desde su campo natural original (suelo, relieve, agua). No depende de la pastura que tenga hoy.</span>
       </div>
-      <Campo label="Aguada"><Input value={d.aguada} onChange={set("aguada")} placeholder="Tajamar, arroyo, bebedero compartido con el 8…" /></Campo>
+      <div className="space-y-2 bg-sky-50 border border-sky-200 rounded-2xl p-3">
+        <div className="text-sm font-semibold text-sky-900">💧 Agua</div>
+        <div className="flex flex-wrap gap-1.5">
+          {FUENTES_AGUA.map((f) => (
+            <button key={f.id} type="button" onClick={() => toggleFuente(f.id)} className={`text-sm rounded-full px-3 py-1 border ${d.fuentesAgua.includes(f.id) ? "bg-sky-700 text-white border-sky-700" : "bg-white border-stone-300"}`}>{f.nombre}</button>
+          ))}
+        </div>
+        <div>
+          <div className="text-sm font-medium text-stone-700 mb-1">¿Cómo aguanta en una seca de verano?</div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {Object.entries(AGUA_SECA).map(([k, a]) => (
+              <button key={k} type="button" onClick={() => setD({ ...d, aguaSeca: d.aguaSeca === k ? "" : k })}
+                className={`rounded-xl border py-2 text-sm font-semibold ${d.aguaSeca === k ? "text-white border-transparent" : "bg-white border-stone-300 text-stone-700"}`}
+                style={d.aguaSeca === k ? { background: a.color } : undefined}>
+                {a.nombre}<span className="block text-[10px] font-normal">{a.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <Campo label="Detalle de la aguada" ayuda="Lo fijo. Lo que se vaya viendo (caudal, limpieza, roturas) va en Comentarios con el tema Agua."><Input value={d.aguada} onChange={set("aguada")} placeholder="Ej: tajamar chico al fondo, bebedero compartido con el 8" /></Campo>
+      </div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.enRotacion} onChange={set("enRotacion")} className="w-5 h-5" /> Entra en la rotación de pastoreo</label>
       <Campo label="Descripción fija" ayuda="Lo que no cambia (suelo, accesos, particularidades). Las novedades van como comentarios con fecha en la ficha."><Area value={d.notas} onChange={set("notas")} /></Campo>
     </Modal>
