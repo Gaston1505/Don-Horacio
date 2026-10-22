@@ -75,8 +75,8 @@ function Login() {
       else await ingresar(email, clave);
     } catch (err) {
       if (!navigator.onLine) setError(sinSenal);
-      else if (modo === "codigo") setError(err.code === "auth/admin-restricted-operation" || err.code === "auth/operation-not-allowed" ? "El ingreso con código todavía no está activado en Firebase." : "Ese código no es válido. Pedíselo a Gastón.");
-      else setError("Email o contraseña incorrectos.");
+      else if (modo === "codigo") setError((err.code === "auth/admin-restricted-operation" || err.code === "auth/operation-not-allowed" ? "El ingreso con código todavía no está activado en Firebase." : "Ese código no es válido. Revisá que esté bien escrito o pedíselo de nuevo a Gastón.") + ` (${err.code || err.message})`);
+      else setError(`Email o contraseña incorrectos. (${err.code || err.message})`);
     } finally { setEnviando(false); }
   };
   return (

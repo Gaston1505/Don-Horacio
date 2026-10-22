@@ -246,9 +246,10 @@ export async function entrarConCodigo(nombre, codigo) {
   try {
     await setDoc(doc(db, "usuarios", cred.user.uid), { nombre: nombre.trim(), rol: "capataz", codigo: cod, creadoEn: new Date().toISOString() });
   } catch (e) {
+    console.error(e);
     await cred.user.delete().catch(() => signOut(auth));
     const err = new Error("codigo");
-    err.code = "codigo-invalido";
+    err.code = "codigo-invalido: " + (e.code || e.message);
     throw err;
   }
 }
